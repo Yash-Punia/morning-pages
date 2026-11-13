@@ -13,7 +13,7 @@ test('app boots with no errors, no CSP violations and no third-party requests', 
   });
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Morning Pages' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 
   // Self-hosted fonts (D-012, PRI-3): both faces load from our own origin.
   const fonts = await page.evaluate(async () => {

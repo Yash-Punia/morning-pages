@@ -26,5 +26,5 @@ test('installed service worker opens the app with the server gone', async ({ pag
   server = undefined;
 
   await page.goto(`${url}/library`); // an app route, served from the precache via navigateFallback
-  await expect(page.getByRole('heading', { name: 'Morning Pages' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Library' })).toBeVisible(); // a lazy chunk, also precached
 });

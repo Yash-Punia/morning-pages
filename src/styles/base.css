@@ -68,6 +68,39 @@ textarea {
   color: inherit;
 }
 
+/* Screens off the canvas: a page with margins, titles set like a notebook's headings. */
+.screen {
+  padding: max(var(--space-7), env(safe-area-inset-top)) max(var(--space-6), env(safe-area-inset-right)) var(--space-7)
+    max(var(--space-6), env(safe-area-inset-left));
+  max-width: 44rem;
+}
+.screen-title {
+  font-family: var(--font-date);
+  font-size: var(--text-xl);
+  font-weight: 560;
+  letter-spacing: -0.015em;
+}
+.screen-title + * {
+  margin-top: var(--space-4);
+}
+.lede {
+  color: var(--ink-soft);
+  max-width: 60ch;
+}
+@media (max-width: 599.98px) {
+  .screen {
+    padding: max(var(--space-6), env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right)) var(--space-6)
+      max(var(--space-4), env(safe-area-inset-left));
+  }
+}
+
+/* Route changes: a quick cross-fade inside the 200 ms motion ceiling (PRD 10.3). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-out);
+}
+
 /* Times, dates and counts that line up */
 time,
 data {

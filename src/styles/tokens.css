@@ -13,6 +13,7 @@
   --ink: light-dark(oklch(28.2% 0.034 255.8), oklch(92.4% 0.016 86));
   --ink-soft: light-dark(oklch(44.5% 0.03 255), oklch(76.5% 0.02 84));       /* secondary text, never grey */
   --rule: light-dark(oklch(28.2% 0.034 255.8 / 0.16), oklch(92.4% 0.016 86 / 0.14));
+  --stitch: light-dark(oklch(28.2% 0.034 255.8 / 0.32), oklch(92.4% 0.016 86 / 0.26)); /* the spine's binding stitch */
 
   /* The one current or primary thing; sage only for "saved" */
   --accent: light-dark(oklch(60.8% 0.132 44.2), oklch(68.5% 0.12 46));
