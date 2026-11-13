@@ -26,6 +26,30 @@ Checked in the desktop browser: a synthetic pen stroke, with batches repeating t
 
 **Retest in Safari** (the product target; Chrome adds its own toolbars), at `https://morning-pages-spikes.vercel.app/ink/` or on the LAN dev server.
 
+## Round 2 (2026-11-14): ink pipeline
+
+Owner verdict on round 1: "certainly better", **but** there's extra ink where a stroke ends, and it is not as smooth as Apple's Journal ballpoint. The exported page (Chrome for iOS again; 423 strokes, 0 repeated samples, so the round-1 fix holds) showed:
+- **The lift-off sample is a jump.** The `pointerup` sample lands 5.5× a normal step away (median 3.9 px, p90 8.2 px), 12 ms late, at pressure 0. Its last segment turns a median 41°. That is the blob/hook at stroke ends.
+- **Pressure rises to ~1.4× mid-stroke** over the last ~8 samples before the lift.
+- **Position jitter** comes from the 0.5 px quantisation.
+
+What Apple says about its own ink: a PencilKit stroke path is a uniform cubic B-spline (a smooth curve, not a polyline), and Pencil force/angles arrive as estimates refined later. The browser exposes neither, so [`pipeline.ts`](pipeline.ts) rebuilds the nearest equivalent:
+1. **1€ filter on position** (Casiez, Roussel, Vogel, CHI 2012). The cutoff rises with speed: slow strokes lose the jitter, fast ones don't lag. Three levels, on the **smooth** button.
+2. **Pressure low-pass** (EMA 0.2/sample), so the pre-lift spike doesn't swell the end. Fountain `thinning` lowered from 0.65 to 0.5.
+3. **The lift-off sample is never drawn.** At pen-up the filter settles onto the last real sample.
+4. **The outline is drawn as quadratic curves through midpoints** instead of straight segments. perfect-freehand's own `streamline` drops to 0.15, since the input is already filtered.
+
+`node ink/pipeline.check.ts <page.json…>` on the owner's two pages:
+
+| | Jitter (RMS 2nd diff) | Ink behind pen (mean) | End gap | Strokes with an end hook > 45° |
+| --- | --- | --- | --- | --- |
+| Before (page 2) | 0.878 px | — | — | 52% |
+| low | 0.305 px | 1.30 px | ≤ 0.10 px | 8% |
+| **medium (default)** | **0.284 px** | **1.75 px** | **≤ 0.10 px** | **7%** |
+| high | 0.259 px | 2.31 px | ≤ 0.19 px | 5% |
+
+Page 1 (recorded before the round-1 dedupe) shows the same pattern: hooks 56% → 14%. The remaining "hooks" are probably real end curls in the handwriting. A browser smoke test confirms the live page draws, never draws the lift-off jump, and the smooth button cycles. Deployed. **Owner retest pending, ideally in Safari.**
+
 ## Results
 
 | Measure | Budget | Fountain | Ballpoint |

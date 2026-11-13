@@ -2,23 +2,24 @@
 // Questions: does Pencil ink feel like paper in Safari, what sample rate do we
 // get, what is the real rAF rate on ProMotion, and how much app work per frame?
 import { getStroke, type StrokeOptions } from 'perfect-freehand';
+import { smooth, fillOutline, SMOOTHING, type Pt } from './pipeline.ts';
 import { hud, set, note, setBusy, toggle, button, saveJson } from '../shared/hud.ts';
 import './ink.css';
 
-type Pt = [x: number, y: number, p: number, alt: number, az: number, t: number];
 type Preset = 'fountain' | 'ballpoint';
 interface Stroke { preset: Preset; pts: Pt[] }
 type PenEvent = PointerEvent & { altitudeAngle?: number; azimuthAngle?: number };
 
 const PRESETS: Record<Preset, StrokeOptions> = {
-  fountain: { size: 5, thinning: 0.65, smoothing: 0.55, streamline: 0.35, simulatePressure: false,
+  // Input is pre-filtered (pipeline.ts), so perfect-freehand's own streamline stays low.
+  fountain: { size: 5, thinning: 0.5, smoothing: 0.6, streamline: 0.15, simulatePressure: false,
     start: { taper: 6 }, end: { taper: 10 } },
-  ballpoint: { size: 2.8, thinning: 0.1, smoothing: 0.5, streamline: 0.35, simulatePressure: false },
+  ballpoint: { size: 2.8, thinning: 0.1, smoothing: 0.6, streamline: 0.15, simulatePressure: false },
 };
 const INK = '#1e2a3a';
 
-const opts = { coalesced: true, predicted: true, preset: 'fountain' as Preset, palmGuard: true, streamline: 0.5 };
-const STREAMLINES = [0.35, 0.5, 0.65]; // on-device knob: higher = smoother, slightly more lag
+const opts = { coalesced: true, predicted: true, preset: 'fountain' as Preset, palmGuard: true,
+  smoothing: 'medium' as keyof typeof SMOOTHING }; // on-device knob: higher = smoother, slightly more lag
 const PALM_GUARD_MS = 500; // ignore finger touches this long after the pen lifts
 let pan = { x: 0, y: 0 }; // page space = client - pan (S1b, D-007)
 let touchPan: { id: number; sx: number; sy: number; px: number; py: number } | null = null;
@@ -68,13 +69,7 @@ function redrawCommitted() {
 }
 
 function fill(ctx: CanvasRenderingContext2D, pts: Pt[], preset: Preset, complete: boolean) {
-  const outline = getStroke(pts, { ...PRESETS[preset], streamline: opts.streamline, last: complete });
-  if (outline.length < 2) return;
-  ctx.beginPath();
-  ctx.moveTo(outline[0][0], outline[0][1]);
-  for (let i = 1; i < outline.length; i++) ctx.lineTo(outline[i][0], outline[i][1]);
-  ctx.closePath();
-  ctx.fill();
+  fillOutline(ctx, getStroke(smooth(pts, SMOOTHING[opts.smoothing], complete), { ...PRESETS[preset], last: complete }));
 }
 
 // ---- per-stroke measurements ----------------------------------------------
@@ -167,7 +162,7 @@ liveEl.addEventListener('pointermove', (e: PenEvent) => {
 
 function end(e: PenEvent) {
   if (!cur || e.pointerId !== cur.pointerId) return;
-  if (e.type === 'pointerup') push(cur.pts, e);
+  // The pointerup sample is the lift-off: ~4 px jump, 0 pressure. Drawing it made the end hook.
   const s = cur;
   cur = null;
   predicted = [];
@@ -255,9 +250,10 @@ const presetBtn = button(`pen: ${opts.preset}`, () => {
   opts.preset = opts.preset === 'fountain' ? 'ballpoint' : 'fountain';
   presetBtn.textContent = `pen: ${opts.preset}`;
 });
-const smoothBtn = button(`smooth: ${opts.streamline}`, () => {
-  opts.streamline = STREAMLINES[(STREAMLINES.indexOf(opts.streamline) + 1) % STREAMLINES.length];
-  smoothBtn.textContent = `smooth: ${opts.streamline}`;
+const LEVELS = Object.keys(SMOOTHING) as (keyof typeof SMOOTHING)[];
+const smoothBtn = button(`smooth: ${opts.smoothing}`, () => {
+  opts.smoothing = LEVELS[(LEVELS.indexOf(opts.smoothing) + 1) % LEVELS.length];
+  smoothBtn.textContent = `smooth: ${opts.smoothing}`;
   redrawCommitted();
 });
 toggle('palm guard', true, (v) => (opts.palmGuard = v));
@@ -265,7 +261,7 @@ button('Clear', () => { strokes.length = 0; pan = { x: 0, y: 0 }; redrawCommitte
 button('Export page', () =>
   saveJson('/__sample', {
     kind: 'morning-pages-sample', version: 1, userAgent: navigator.userAgent, dpr: devicePixelRatio,
-    width: innerWidth, height: innerHeight, strokes,
+    width: innerWidth, height: innerHeight, smoothing: opts.smoothing, strokes,
   }, 'page.json'),
 );
 setInterval(() => { if (!cur && idleDeltas.length) set('rAF Hz (idle)', 1000 / median(idleDeltas)); }, 1000);
