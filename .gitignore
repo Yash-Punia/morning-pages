@@ -8,3 +8,4 @@ spikes/samples/
 # Test output
 test-results/
 playwright-report/
+.vitest/

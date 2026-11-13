@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
@@ -9,4 +9,9 @@ export default defineConfig(({ mode }) => ({
   server: { host: true },
   preview: { host: true },
   build: { manifest: true }, // read by scripts/check-dist.mjs for the launch budget
+  test: {
+    environment: 'node',
+    setupFiles: ['fake-indexeddb/auto'],
+    include: ['src/**/*.test.ts', 'tests/unit/**/*.test.ts'],
+  },
 }));
