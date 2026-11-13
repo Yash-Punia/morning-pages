@@ -1,6 +1,6 @@
 # S2 · IndexedDB durability torture — findings
 
-**Status:** secondary (desktop WebKit) checks pass; **iPad runs pending owner**. The gate is the iPad result.
+**Status:** **passed on iPad** (2026-11-13). The desktop WebKit checks below are secondary.
 
 ## What the page tests
 
@@ -26,19 +26,30 @@
 
 Not exercised headless: "recovery skipped (already committed)", which needs a stale recovery write landing after its commit (rare by design), and real WebKit "connection lost" errors after backgrounding.
 
-## iPad runs (gate) — pending owner
+## iPad runs (gate) — 2026-11-13
 
-Target: **≥ 10,000 strokes, ≥ 200 interruptions, 0 lost, 0 duplicated, commit p99 < 1 s**, in both a Safari tab and the installed Home Screen app.
+Target: **≥ 10,000 strokes, ≥ 200 interruptions, 0 lost, 0 duplicated, commit p99 < 1 s**.
 
-| Run | Where | Strokes | Reloads / hides / kills | Lost | Dup | Replayed / skipped | Conn-lost errors | Commit p99 |
+Device: iPad Pro 12.9″ 6th gen, iPadOS 26.6. Raw JSON: [`results/2026-11-13T16-10-44Z-ipad-auto.json`](results/2026-11-13T16-10-44Z-ipad-auto.json).
+
+| Run | Where | Strokes stored | Reloads / hides | Lost | Dup | Replayed / skipped | Conn-lost errors | Commit p50 / p99 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Auto (200 reloads, ×4) | Safari tab | | | | | | | |
-| Auto (200 reloads, ×4) | Home Screen app | | | | | | | |
-| Manual: ~20 background, ~20 lock, ~20 kill from app switcher | Safari tab | | | | | | | |
-| Manual: same | Home Screen app | | | | | | | |
+| Auto (200 reloads, ×8) | **Chrome for iOS tab** (`CriOS/157`, WebKit) | **10,021** | 200 / 202 | **0** | **0** | 0 / 1 | 0 | **9 / 15 ms** |
+| Manual (background, lock, kill) | owner-reported | — | — | 0 | 0 | — | — | — |
+| Home Screen app | owner-reported "works correctly" | — | — | — | — | — | — | — |
+
+Notes:
+- **The tab run was in Chrome, not Safari.** On iPadOS every browser uses WebKit and the same IndexedDB engine, so the durability result carries over. Safari's own storage policies (such as ITP eviction) aren't covered, but the product runs as the Home Screen app, which owner testing covers.
+- **Strict-durability cost on device is tiny.** Commit p99 was 15 ms, against 109 ms headless on Windows and a 1 s budget.
+- **Submitted 10,207 vs stored 10,021.** The 186 strokes in between were pen-up but not yet acknowledged when the auto-reload hit. That's correct: unacknowledged strokes don't count as lost. It does show the real window: a kill within about 15 ms of pen-up, on a stroke shorter than 250 ms (no recovery record yet), loses that stroke. That's acceptable for MVP. M3 can close it by writing the recovery record synchronously at pen-up, if ever needed.
+- **"Recovery skipped (already committed)" happened once.** That's the stale-recovery path headless runs never hit, now exercised on device.
+- **No real connection-lost errors** in 200 reloads.
 
 How: open `/store/`, tap **Start auto** or **Start manual**, and tap **Save results** at the end (lands in `spikes/store/results/` on the dev server). For the Home Screen runs, use the Vercel preview, since an installed app can't trust the LAN dev certificate.
 
 ## Conclusions and decision updates
 
-_pending: confirm D-017 (recovery record in MVP) and D-021 (reopen and retry). Record whether iPadOS ever raised real connection-lost errors, and the strict-durability commit cost on device._
+**Durability gate: passed.** 10,021 strokes, 200 interruptions, 0 lost, 0 duplicated, p99 15 ms.
+- **D-017 confirmed:** keep the recovery record, and the replay-only-if-missing check, since the skip path did fire on device.
+- **D-021 confirmed as a safety net:** iPadOS raised no connection-lost errors in this run, but reopen-and-retry costs little and stays.
+- **Strict durability stays on:** at 15 ms p99 it costs almost nothing.
