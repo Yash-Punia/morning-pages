@@ -9,10 +9,14 @@
 
 ## Deploy
 
-Throwaway Vercel project `morning-pages-spikes`, Preview deployment of the whole `spikes/` build (ink, store, codec, pwa), with `spikes/vercel.json` headers. Before testing, in the Vercel dashboard for that project:
+Throwaway Vercel project `morning-pages-spikes` (CLI deploy from `spikes/`, git auto-deploy disconnected). The first deploy became the project's production deployment, so it has a stable public alias: **https://morning-pages-spikes.vercel.app**. Use that URL on the iPad. The per-deployment `*-yashpunias-projects.vercel.app` URLs stay behind Vercel Authentication (302). So no Deployment Protection change was needed: D-026 applies to the real app's previews, not here.
 
-1. Settings → Deployment Protection → **Vercel Authentication off** for previews (D-026).
-2. Settings → General → **Vercel Toolbar off** for Preview and Production.
+Deployed checks, 2026-11-13 (curl + desktop browser):
+- All TDD headers are present on every page. `sw.js` and the manifest are `no-cache`, and the manifest is `application/manifest+json`.
+- `/`, `/ink/`, `/store/`, `/store/codec.html` and all `/pwa/` icons return 200.
+- `/pwa/` report: SW active and controlling after a reload, 7 files cached, **0 CSP violations**, **no Vercel Toolbar script** (the production alias doesn't inject it).
+
+Redeploy after spike changes: `cd spikes && vercel deploy --prod --yes`.
 
 ## iPad results — pending owner
 
