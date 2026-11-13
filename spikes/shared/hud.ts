@@ -78,13 +78,18 @@ export function results() {
   };
 }
 
-/** Dev server writes to the repo; otherwise fall back to share sheet, then clipboard. */
+/**
+ * Dev server: POST into the repo. Deployed: open the share sheet immediately,
+ * because awaiting a failed fetch first would expire Safari's user activation.
+ */
 export async function saveJson(endpoint: string, data: unknown, filename: string) {
   const body = JSON.stringify(data);
-  try {
-    const r = await fetch(endpoint, { method: 'POST', body });
-    if (r.ok) return note(`saved ${(await r.json()).saved}`);
-  } catch {}
+  if (import.meta.env.DEV) {
+    try {
+      const r = await fetch(endpoint, { method: 'POST', body });
+      if (r.ok) return note(`saved ${(await r.json()).saved}`);
+    } catch {}
+  }
   const file = new File([body], filename, { type: 'application/json' });
   try {
     if (navigator.canShare?.({ files: [file] })) return await navigator.share({ files: [file] });
