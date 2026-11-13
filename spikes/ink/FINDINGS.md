@@ -1,8 +1,8 @@
 # S1 · Ink latency — findings
 
-**Status:** pending owner run. Every result cell below stays blank until measured on the reference device.
+**Status:** **passed on the owner's verdict (2026-11-14)** after the two rounds below: "everything looks all good". The HUD timing table at the bottom was not captured; the M6 performance pass measures it. From the exported pages: about **213–240 samples/s** (median Δt 4.2–4.7 ms), with pressure and tilt reported. Decisions: D-036 (pipeline), D-037 (canvas sizing), D-008 confirmed.
 
-**Device:** iPad Pro 12.9″ (6th gen, M2) + Apple Pencil 2nd gen (A2051) · iPadOS: _pending_
+**Device:** iPad Pro 12.9″ (6th gen, M2) + Apple Pencil 2nd gen (A2051) · iPadOS 26.6 · tested in Chrome for iOS (WebKit)
 **Where:** dev server over LAN HTTPS (`https://<PC-IP>:5173/ink/`) and later the Vercel preview
 
 ## How to run
@@ -48,7 +48,7 @@ What Apple says about its own ink: a PencilKit stroke path is a uniform cubic B-
 | **medium (default)** | **0.284 px** | **1.75 px** | **≤ 0.10 px** | **7%** |
 | high | 0.259 px | 2.31 px | ≤ 0.19 px | 5% |
 
-Page 1 (recorded before the round-1 dedupe) shows the same pattern: hooks 56% → 14%. The remaining "hooks" are probably real end curls in the handwriting. A browser smoke test confirms the live page draws, never draws the lift-off jump, and the smooth button cycles. Deployed. **Owner retest pending, ideally in Safari.**
+Page 1 (recorded before the round-1 dedupe) shows the same pattern: hooks 56% → 14%. The remaining "hooks" are probably real end curls in the handwriting. A browser smoke test confirms the live page draws, never draws the lift-off jump, and the smooth button cycles. Deployed. **Owner retest: "everything looks all good now." Gate passed.**
 
 ## Results
 

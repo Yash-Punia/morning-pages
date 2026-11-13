@@ -44,6 +44,9 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 | D-032 | 2026-11-13 | The site is public | Accepted |
 | D-033 | 2026-11-13 | No cross-device transfer now; accounts and cloud storage may come later | Accepted |
 | D-034 | 2026-11-13 | Accept a 15–25 MB handwriting model, downloaded on demand | Accepted |
+| D-035 | 2026-11-13 | Defer spike S4 (handwriting recognition) to just before M13 | Accepted |
+| D-036 | 2026-11-14 | Ink input pipeline: dedupe, drop lift-off, 1€ filter, curved outline | Accepted |
+| D-037 | 2026-11-14 | Size canvases from their own box, never from `100vh` or `innerHeight` | Accepted |
 
 ---
 
@@ -104,6 +107,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - `Float32Array` without deltas: about 3× larger.
   - Compressing each stroke with deflate: costs CPU on every pen-up for little gain at this size.
 - **Consequences:** The codec format is part of the open backup schema and must be documented and versioned. Spike S2 validates the size on real pages.
+- **M0 result (2026-11-14): confirmed, ε = 0.15.** On the owner's clean dense page (423 strokes, 24,883 samples), the size is 153 KB unsimplified, 92 KB at ε 0.1 and **84 KB at ε 0.15**. Quantisation error is ≤ 0.044 units, and ε 0.15 units is about 0.18 CSS px, so it is invisible. The older page that still had repeated samples is 128 KB at ε 0.15, so it stays under budget too.
 
 ### D-007 · Custom pan/zoom with `touch-action: none` on the canvas
 
@@ -112,6 +116,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 - **Decision:** Implement one-finger pan with inertia, two-finger pinch and pan, and tap gestures in `ink/gestures.ts`, all in page space.
 - **Alternatives:** Native scrolling with `touch-action: pan-y`. Safari would then `pointercancel` Pencil strokes when it decides to scroll. That is unacceptable.
 - **Consequences:** We own scroll physics and must make inertia feel native. This is checked in the M2 manual checklist.
+- **M0 result (2026-11-14): confirmed.** S1b uses `touch-action: none`, non-passive `touchstart`/`touchmove` `preventDefault`, one-finger pan, and a 500 ms palm guard. The owner reports no problems. The detailed checklist was not filled in, so it gets redone in the M2.2 manual pass.
 
 ### D-008 · Canvas 2D renderer first; WebGL only if profiling demands
 
@@ -120,6 +125,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 - **Decision:** Use Canvas 2D: a live layer plus tiles of committed strokes, with an LRU cap of 24 tiles to stay under Safari's canvas memory limit.
 - **Alternatives:** WebGL or WebGPU from day one. That means more code and harder text and paper rendering, with no evidence yet that it is needed.
 - **Consequences:** Spike S1 and the M6 performance pass decide whether a WebGL path is ever built.
+- **M0 result (2026-11-14): confirmed.** After D-036 and D-037, Canvas 2D with perfect-freehand passed the owner's feel test against Apple's Journal. The roughness came from input handling and canvas sizing, not from the renderer. No WebGL needed for now. HUD frame timings were not captured, so the M6 performance pass measures them.
 
 ### D-009 · Workbox `generateSW`, prompt-mode updates, bundled registration
 
@@ -207,6 +213,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 - **Decision:** Implement the 250 ms recovery record in M3 (Milestone 3.8).
 - **Alternatives:** Keep it at P1 as the PRD lists it.
 - **Consequences:** Adds one small store write per 250 ms during strokes, at low priority in the queue. **Deviates from PRD priority.**
+- **M0 result (2026-11-14): confirmed and tightened.** The iPad torture run hit the "replay skipped, already committed" path, so the idempotent replay check is needed. 186 strokes were pen-up but not yet acknowledged when a reload hit. That is correct behaviour, but it showed that a stroke under 250 ms has no recovery record before its commit, which takes about 10–15 ms. M3.8 therefore makes the first recovery write at the stroke's first sample, then every 250 ms. A `localStorage` fallback was rejected, because DUR-8 forbids it.
 
 ### D-018 · Build an on-device diagnostics HUD
 
@@ -250,6 +257,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   Nothing is dequeued until its transaction commits.
 - **Alternatives:** Ask the user to reload, as WebKit's own error message suggests. That risks losing strokes that are still in memory.
 - **Consequences:** The torture suite must simulate each error class.
+- **M0 result (2026-11-14): confirmed as a safety net.** iPadOS 26.6 raised no connection-lost errors in 200 reloads. The simulated loss recovered after one retry. With `durability: 'strict'`, commit p50/p99 on device was 9/15 ms, so strict stays.
 
 ### D-022 · Encrypt content fields only; never index content
 
@@ -303,6 +311,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - nothing is sent to a server.
 
   Spike S3 confirms that installed previews load.
+- **M0 result (2026-11-14): still open; verify in M1.5.** The spike project's first CLI deploy became production, so it had a public alias and protection never got in the way. Per-deployment URLs on that project redirect to Vercel login (302), which is exactly what this decision avoids for the real app. The Vercel Toolbar was not injected on the production alias.
 
 ### D-027 · The 400 KB budget covers launch-critical bytes, including fonts
 
@@ -366,6 +375,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 - **Decision:** The name is **Morning Pages**. The manifest `name`, `short_name` and `apple-mobile-web-app-title` are all "Morning Pages". If iPadOS truncates the Home Screen label, the fallback `short_name` is "Morning" (checked in spike S3).
 - **Alternatives:** A distinct name; "Pages" as the short name, which clashes with Apple's Pages app.
 - **Consequences:** The production **domain** is still open and still blocks M6 (D-002).
+- **M0 result (2026-11-14): confirmed.** The iPad Pro 12.9″ Home Screen shows "Morning Pages" in full, so no fallback is needed.
 
 ### D-032 · The site is public
 
@@ -398,6 +408,48 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - Precaching the model with the app. That would make every install and update 25 MB.
   - A cloud OCR service. That breaks the rule that no ink leaves the device.
 - **Consequences:** The app launch and offline use are unaffected. If the size proves bad, only §5.8 and M13.1 change.
+
+### D-035 · Defer spike S4 (handwriting recognition) to just before M13
+
+- **Date:** 2026-11-13 · **Status:** Accepted
+- **Context:** Recognition is a v2 feature. Evaluating models now would delay the MVP, and the candidate models may change by then.
+- **Decision:** S4 moves out of M0 and becomes M13.0, the first step of M13. The owner's pages exported during M0 are kept locally as its test set.
+- **Alternatives:** Run S4 in M0 as originally planned.
+- **Consequences:** The M0 gate covers ink and durability only. M13 can't start feature work until 13.0 recommends go.
+
+### D-036 · Ink input pipeline: dedupe, drop lift-off, 1€ filter, curved outline
+
+- **Date:** 2026-11-14 · **Status:** Accepted
+- **Context:** In S1 the owner found the ink rough next to Apple's Journal, with a blob or hook at stroke ends. The exported pages showed three causes:
+  - iPad WebKit repeats the previous batch's tail in `getCoalescedEvents`: 23 % of samples, with time going backwards.
+  - Coordinates are quantised to 0.5 CSS px.
+  - The `pointerup` sample jumps a median 3.9 px at pressure 0, giving hooks on 52 % of strokes.
+
+  PencilKit itself stores strokes as cubic B-splines and refines estimated Pencil values later. Neither is exposed to the web.
+- **Decision:**
+  1. Keep only samples whose timestamp is newer than the last one kept, predicted samples included.
+  2. Never draw the lift-off sample.
+  3. Smooth position with a 1€ filter (Casiez et al., CHI 2012). Levels: low (fc_min 4 Hz, β 0.04), medium (2, 0.025, the default), high (1, 0.015).
+  4. Low-pass pressure with an EMA of 0.2 per sample.
+  5. At pen-up, settle the filter onto the last real sample.
+  6. Fill the perfect-freehand outline with quadratic curves through midpoints. perfect-freehand's own `streamline` drops to 0.15.
+  7. **Store raw samples. Smoothing is a pure function applied at render**, so live and committed ink match and the level can change later without rewriting data.
+- **Alternatives:**
+  - Tuning perfect-freehand's `streamline` alone. Round 1 showed it adds lag without removing hooks.
+  - Storing smoothed points. That loses the raw data and freezes the filter choice into old entries.
+  - A custom spline renderer. More code, and not needed once the input was clean.
+- **Consequences:**
+  - On the owner's page: end hooks 52 % → 7 %, jitter 0.88 → 0.28 px, ink trailing the pen by about 1.75 px, stroke ends within 0.1 px of the lift point. The owner passed it.
+  - Rendering an old entry depends on the smoothing parameters. They become part of the documented format, and a change gets a version.
+  - Ported in M2.1 and M2.4.
+
+### D-037 · Size canvases from their own box, never from `100vh` or `innerHeight`
+
+- **Date:** 2026-11-14 · **Status:** Accepted
+- **Context:** In S1 the ink appeared offset from the nib. The canvas's CSS size was `100vh`, which on iPadOS is the height with toolbars hidden, while its backing store used `innerHeight`. With the toolbars showing, the canvas was stretched, so ink drifted from the nib more toward the bottom of the screen and got resampled.
+- **Decision:** Writing canvases use `position: fixed; inset: 0; width/height: 100%`. Backing pixels and the pointer origin come from `getBoundingClientRect()`, re-measured with a `ResizeObserver`. Page coordinates are `clientX − rect.left − pan`.
+- **Alternatives:** `100dvh`. That still relies on viewport-unit behaviour, and `ResizeObserver` covers every case.
+- **Consequences:** Exact 1:1 ink under the nib, confirmed by the owner. The M2.5 test checks this with the toolbars shown and hidden.
 
 ---
 

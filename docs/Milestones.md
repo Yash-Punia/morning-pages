@@ -32,9 +32,15 @@ Throwaway prototypes in `spikes/` (committed for the record, never shipped). Eac
 | 0.4 | **S2 Durability torture:** per-stroke IDB transactions, recovery record, reload/close/cancel mid-stroke loop | DUR-1…4 | `spike(store): indexeddb stroke durability torture test` | 10,000 strokes across 200 forced interruptions, zero lost |
 | 0.5 | **S2b Codec size:** point codec + RDP on real handwritten pages | §12.1 storage | `spike(store): measure point codec size on real pages` | Dense real page < 150 KB; numbers recorded in FINDINGS |
 | 0.6 | **S3 Install + persist + headers:** deploy spike to Vercel preview with the TDD `vercel.json` and preview protection off (D-026), install to Home Screen, log `persist()` / `estimate()` / standalone detection | STO-1, STO-3, PRI-2 | `spike(pwa): home screen install, persist and csp on vercel` | Installed preview loads manifest and icons; Home Screen label "Morning Pages" is not truncated (else use "Morning"); reports standalone; persist result recorded; zero CSP violations; Toolbar absent |
-| 0.7 | **S4 Handwriting recognition feasibility:** evaluate on-device model, W3C API, image OCR on the owner's pages | §9.3 | `spike(recog): evaluate on-device handwriting recognition` | Accuracy and size table recorded; go / no-go recommendation for v2 |
+| 0.7 | **Close-out:** findings into Decisions.md; S4 moved to M13 as 13.0 (D-035) | — | `docs: record m0 spike findings and decisions` | Decisions updated; PR opened |
 
 **🚦 Gate (PRD §13 Phase 0):** ink feels like paper to the owner; zero lost strokes in torture tests.
+
+**Gate result (2026-11-14): passed.**
+- **Ink:** passed on the owner's verdict, after two rounds of fixes: 1:1 mapping, repeated-sample dedupe, the 1€ pipeline, and no lift-off hook (D-036, D-037). The HUD latency numbers were not captured.
+- **Durability:** passed on iPad. 10,021 strokes across 200 reloads: 0 lost, 0 duplicated, commit p99 15 ms. The owner also reports the manual interruption runs and the Home Screen app as passing.
+- **Codec:** a dense page is 84 KB at ε 0.15.
+- **Not checked on device:** `persist()` in the installed app, the Airplane Mode reopen, and Safari as opposed to Chrome for iOS. These carry into M1.6 and M3.9.
 
 ---
 
@@ -60,11 +66,11 @@ Throwaway prototypes in `spikes/` (committed for the record, never shipped). Eac
 
 | # | Feature | PRD | Commit | Done when |
 | --- | --- | --- | --- | --- |
-| 2.1 | Input module: pen-only, coalesced, predicted, pressure/tilt, pointer capture, cancel handling | PEN-1, 3, 4, 5, 6, 9 | `feat(ink): pointer input with coalesced and predicted samples` | Unit tests on sample normalisation; S1 behaviour reproduced |
+| 2.1 | Input module: pen-only, coalesced, predicted, pressure/tilt, pointer capture, cancel handling; drop repeated coalesced samples and the lift-off sample (D-036) | PEN-1, 3, 4, 5, 6, 9 | `feat(ink): pointer input with coalesced and predicted samples` | Unit tests on sample normalisation, including repeated and backwards timestamps; S1 behaviour reproduced |
 | 2.2 | Canvas iOS suppression (touch-action, callout, loupe, double-tap) | PEN-2 | `feat(ink): suppress ios gestures on writing surface` | Manual palm/scribble checklist passes |
 | 2.3 | Viewport: page space, custom pan with inertia, pinch zoom | PEN-7 | `feat(ink): page-space viewport with pan and pinch zoom` | One finger scrolls, two fingers zoom, no ink from fingers |
-| 2.4 | Stroke builder + fountain pen and ballpoint presets | INK-2, tools | `feat(ink): fountain pen and ballpoint strokes` | Visual check against S1; outlines taper |
-| 2.5 | Live layer + tiled committed layer with LRU cap | INK-1, 3, 5 | `feat(ink): live layer and tiled committed rendering` | 50-page synthetic entry scrolls without dropped frames |
+| 2.4 | Stroke builder: 1€ position filter, pressure low-pass, settle-on-lift, curved outline (D-036, ported from `spikes/ink/pipeline.ts`); fountain pen and ballpoint presets; smoothing level setting (default medium) | INK-2, tools | `feat(ink): fountain pen and ballpoint strokes` | Visual check against S1 round 2; on the owner's local pages, end hooks ≤ 10 % and jitter ≤ 0.3 px (the `pipeline.check` metrics); outlines taper |
+| 2.5 | Live layer + tiled committed layer with LRU cap; canvas sized from its own box (D-037) | INK-1, 3, 5 | `feat(ink): live layer and tiled committed rendering` | 50-page synthetic entry scrolls without dropped frames; ink lands under the nib with toolbars shown or hidden |
 | 2.6 | Paper styles: blank, lined (3), dotted, grid, Cornell; date header | §4.4 P0 | `feat(ink): paper styles and date header` | All styles render crisp at 1×/2×/4× |
 | 2.7 | Continuous scroll pages, auto-append page on last page | §4.4 | `feat(ink): continuous scroll with auto-appended pages` | Writing on last page creates the next one |
 | 2.8 | Stroke eraser | tools P0 | `feat(ink): stroke eraser` | Erases whole strokes by hit-test |
@@ -79,13 +85,13 @@ Throwaway prototypes in `spikes/` (committed for the record, never shipped). Eac
 | # | Feature | PRD | Commit | Done when |
 | --- | --- | --- | --- | --- |
 | 3.1 | Dexie schema v1 (all stores), records, repositories | §5.1 | `feat(store): dexie schema and repositories` | Unit tests for every repository |
-| 3.2 | Point codec + RDP simplify with fixtures | INK-4, §12.1 | `feat(store): compact point codec with simplification` | Round-trip tests; fixture page < 150 KB |
+| 3.2 | Point codec + RDP simplify (ε 0.15, D-006) with fixtures. Store **raw** samples; smoothing is applied at render (D-036) | INK-4, §12.1 | `feat(store): compact point codec with simplification` | Round-trip tests; synthetic dense fixture < 150 KB (the owner's real pages stay local, since the repo is public) |
 | 3.3 | Serial write queue, strict durability, saved dot after `complete` | DUR-1, DUR-2 | `feat(store): serial write queue with durability callback` | Dot only after commit (test with delayed commit) |
 | 3.4 | Today entry created on first stroke (entry + page + op in one txn) | ENT-1 | `feat(store): create today entry atomically on first stroke` | No empty entries after open/close without writing |
 | 3.5 | Op log fold: erase/restore ops, undo writes ops | DUR-2 | `feat(store): append-only op log with erase and restore` | Reload reproduces exact visible strokes |
 | 3.6 | Error classification: reconnect-and-retry, quota hold, emergency export | STO-4, DUR-1 | `feat(store): recover from connection loss and quota errors` | Simulated errors lose zero strokes |
 | 3.7 | Flush on `visibilitychange` / `pagehide` | DUR-3 | `feat(store): flush strokes on hide and pagehide` | Torture test: background mid-stroke keeps stroke |
-| 3.8 | Recovery record (pulled from P1, D-017) | DUR-4 | `feat(store): crash recovery for in-flight strokes` | Kill mid-stroke → stroke restored on next launch; replay after a successful commit produces no duplicate |
+| 3.8 | Recovery record (pulled from P1, D-017); first write at the first sample, then every 250 ms, so short strokes are covered too | DUR-4 | `feat(store): crash recovery for in-flight strokes` | Kill mid-stroke → stroke restored on next launch; replay after a successful commit produces no duplicate; a stroke under 250 ms killed at pen-up is restored |
 | 3.9 | `persist()` loop + `estimate()` + 80 % warning | STO-3, STO-4 | `feat(store): request persistent storage and track quota` | Status visible in diagnostics |
 | 3.10 | Migration harness: dynamic-mode open, pre-migration backup hook, fixture tests | DUR-6 | `feat(store): migration harness with pre-migration backup` | Fixture `db-v1` round-trips through a dummy v2 |
 | 3.11 | Restore scroll position and tool on reopen | §3 step 7 | `feat(store): resume last position and tool` | Reopen lands on same page, same tool |
@@ -224,6 +230,7 @@ Model chosen by spike S4; a 15–25 MB download is accepted (D-034).
 
 | # | Feature | PRD | Commit | Done when |
 | --- | --- | --- | --- | --- |
+| 13.0 | **S4 Handwriting recognition feasibility** (moved from M0, D-035): evaluate an on-device model, the W3C API and image OCR on the owner's pages | §9.3 | `spike(recog): evaluate on-device handwriting recognition` | Accuracy and size table recorded; go / no-go for the rest of M13 |
 | 13.1 | Opt-in model download: size shown, chunked + resumable, SHA-256 check, own cache bucket, `recognition_enabled` event | §9.3, TDD §5.8 | `feat(recog): on-demand handwriting model download` | Survives interrupted download; app update does not re-download; offline launch unaffected |
 | 13.2 | Recogniser worker (idle-only) + hidden text layer with word boxes | §9.3 | `feat(recog): background on-device handwriting recognition` | Never runs while writing |
 | 13.3 | Word correction UI | §9.3 | `feat(recog): correct recognised words` | Corrections persist |
