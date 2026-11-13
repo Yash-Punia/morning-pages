@@ -10,3 +10,5 @@ test-results/
 playwright-report/
 .vitest/
 .env*
+# Impeccable engine binary: downloaded and checksum-verified by the launcher on first use
+.claude/skills/impeccable/scripts/bin/

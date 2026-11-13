@@ -699,16 +699,16 @@ Visual design is produced with **[Impeccable](https://impeccable.style)**, a des
 ### 12.1 Setup (M1)
 
 ```bash
-npx impeccable skills install
+npx impeccable install -y --providers=claude --scope=project --no-hooks
 ```
 
-Run from the repo root; it writes the Claude Code build into the project's `.claude/` folder, which is committed so every session and contributor gets the same version. Then in Claude Code:
+Run from the repo root. It writes the skill into the project's `.claude/` folder, which is committed so every session and contributor gets the same version. The platform engine binary under `.claude/skills/impeccable/scripts/bin/` is gitignored; the launcher downloads it on first use and verifies it against `engine-checksums.txt`. Then in Claude Code:
 
 ```
 /impeccable init
 ```
 
-This gathers design context and writes **`PRODUCT.md`** and **`DESIGN.md`** at the repo root. Seed it with:
+`init` interviews for product facts and writes **`PRODUCT.md`** (done in M1.7). **`DESIGN.md`** is written by the first visual-world pass, the M1.8 tokens. Seed it with:
 
 - **Product:** private, pen-first morning journal; used half-awake at 6 a.m.; calm, not gamified; trust is the feature.
 - **Palette (PRD §10.3):** paper cream `#F7F3EA`, ink blue-black `#1E2A3A`, accent terracotta `#C2653A`, muted sage (success), Night charcoal `#1B1C1E`. Expressed as OKLCH tokens with **tinted neutrals** (no pure black or grey).
@@ -765,7 +765,7 @@ Runs in CI on every PR. Starts as a warning (annotated in the PR) during M1–M2
 | `build` | `vite build`; bundle-size script (≤ 400 KB gz launch path); assert `dist/index.html` has no inline `<script>` | yes |
 | `e2e` | Playwright **WebKit**: core flows, durability torture, network allowlist + content canary, axe | yes |
 | `headers` | Parse `vercel.json`; assert CSP string matches the §11.2 policy exactly (PRI-2 plus the single Umami `connect-src`) | yes |
-| `design` | `npx impeccable detect --fast --json src/` | warning → blocking at MVP |
+| `design` | `npx impeccable detect --github src/` (annotations; exit 2 = findings) | warning → blocking at MVP |
 
 ### 13.2 Key automated tests
 
