@@ -1,0 +1,39 @@
+.hud {
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  right: 0;
+  z-index: 10;
+  max-width: min(420px, 60vw);
+  max-height: 70vh;
+  overflow: auto;
+  background: rgb(20 24 32 / 0.82);
+  color: #e8efe6;
+  font: 12px/1.35 ui-monospace, Menlo, monospace;
+  border-bottom-left-radius: 8px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.hud pre {
+  margin: 0;
+  padding: 6px 10px 10px;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+.hud-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px;
+}
+.hud-controls button {
+  min-height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  color: inherit;
+  background: rgb(255 255 255 / 0.12);
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: 6px;
+}
+.hud-min pre {
+  display: none;
+}
