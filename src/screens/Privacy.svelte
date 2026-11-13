@@ -15,6 +15,13 @@
     Removing the Morning Pages icon from your Home Screen also removes the journal stored with it. Pages written in a
     Safari tab stay in Safari and don't appear in the Home Screen app.
   </p>
+  <h2>Anonymous usage counts</h2>
+  <p>
+    To learn how Morning Pages is used, it counts a few things: which screens open, when the app is installed or
+    opened, and how quickly it starts, in rough ranges. These counts go to Umami, a privacy-friendly analytics
+    service, without cookies. They never include your writing, your entries or their dates, or anything that
+    identifies you. You can switch them off in <a href="/settings">Settings</a>.
+  </p>
 </section>
 
 <style>

@@ -2,7 +2,11 @@
   import type { Params } from '../router.ts';
   import Icon from '../ui/Icon.svelte';
   import { version } from '../../package.json';
+  import { analyticsAllowed, setAnalyticsAllowed } from '../settings.ts';
   let { params: _ }: { params: Params } = $props();
+
+  let shareUsage = $state(analyticsAllowed());
+  $effect(() => setAnalyticsAllowed(shareUsage));
 
   const LINKS = [
     { href: '/privacy', label: 'Privacy', hint: 'What stays on this iPad' },
@@ -13,6 +17,15 @@
 <section class="screen" aria-labelledby="settings-title">
   <h1 id="settings-title" class="screen-title">Settings</h1>
   <ul>
+    <li>
+      <label class="row">
+        <span class="text">
+          <span class="label">Share anonymous usage counts</span>
+          <span class="hint">Which screens open, never your writing</span>
+        </span>
+        <input type="checkbox" role="switch" bind:checked={shareUsage} />
+      </label>
+    </li>
     {#each LINKS as link (link.href)}
       <li>
         <a href={link.href}>
@@ -38,7 +51,8 @@
   li {
     border-bottom: var(--hairline) solid var(--rule);
   }
-  a {
+  a,
+  .row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -49,8 +63,45 @@
     color: var(--ink);
     transition: background-color var(--dur-quick) var(--ease-out);
   }
-  a:hover {
+  a:hover,
+  .row:hover {
     background: color-mix(in oklch, var(--linen) 55%, transparent);
+  }
+  .row {
+    cursor: pointer;
+  }
+
+  /* A standard switch in the notebook's palette: linen track, ink when on. */
+  input[role='switch'] {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 51px;
+    height: 31px;
+    margin: 0;
+    border-radius: var(--radius-pill);
+    background: var(--linen-deep);
+    box-shadow: inset 0 0 0 var(--hairline) var(--rule);
+    cursor: pointer;
+    transition: background-color var(--dur-base) var(--ease-out);
+  }
+  input[role='switch']::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    background: var(--paper);
+    box-shadow: 0 1px 3px oklch(28.2% 0.034 255.8 / 0.25);
+    transition: translate var(--dur-base) var(--ease-out);
+  }
+  input[role='switch']:checked {
+    background: var(--ink);
+  }
+  input[role='switch']:checked::after {
+    translate: 20px 0;
   }
   a :global(.icon) {
     color: var(--ink-soft);
