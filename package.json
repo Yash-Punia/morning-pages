@@ -18,12 +18,14 @@
     "@playwright/test": "1.65.0",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@types/node": "24.19.2",
+    "@vite-pwa/assets-generator": "2.0.0",
     "@vitejs/plugin-basic-ssl": "2.3.0",
     "fake-indexeddb": "6.2.8",
     "svelte": "5.57.3",
     "svelte-check": "4.7.8",
     "typescript": "6.0.3",
     "vite": "8.3.8",
+    "vite-plugin-pwa": "2.0.0",
     "vitest": "5.1.0"
   }
 }
