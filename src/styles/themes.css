@@ -1,0 +1,14 @@
+/*
+ * Themes pick a colour scheme; tokens.css resolves every colour with light-dark().
+ * No data-theme: follow the system. Settings (later) sets data-theme on <html>.
+ * Linen, Sepia and High Contrast add token overrides here when they ship.
+ */
+:root {
+  color-scheme: light dark;
+}
+:root[data-theme='paper'] {
+  color-scheme: light;
+}
+:root[data-theme='night'] {
+  color-scheme: dark;
+}
