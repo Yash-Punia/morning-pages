@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
@@ -8,7 +8,8 @@ const root = fileURLToPath(new URL('.', import.meta.url));
 // Dev-only: lets the iPad save results and samples straight into the repo,
 // because a Windows dev machine can't receive AirDrop or read the iPad clipboard.
 //   POST /__results?spike=ink   -> <spike>/results/<timestamp>.json
-//   POST /__sample              -> samples/<timestamp>.json
+//   POST /__sample              -> samples/<timestamp>.json  (gitignored: real handwriting, public repo)
+//   GET  /__samples             -> list of sample file names
 function saveToRepo(): Plugin {
   return {
     name: 'save-to-repo',
@@ -16,6 +17,11 @@ function saveToRepo(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = new URL(req.url ?? '/', 'http://x');
+        if (req.method === 'GET' && url.pathname === '/__samples') {
+          let names: string[] = [];
+          try { names = readdirSync(`${root}samples`).filter((n) => n.endsWith('.json')); } catch {}
+          return res.end(JSON.stringify(names));
+        }
         if (req.method !== 'POST' || !['/__results', '/__sample'].includes(url.pathname)) return next();
         const spike = (url.searchParams.get('spike') ?? 'misc').replace(/[^a-z0-9-]/gi, '');
         const dir = url.pathname === '/__sample' ? `${root}samples` : `${root}${spike}/results`;
@@ -50,6 +56,7 @@ export default defineConfig(({ mode }) => ({
         main: `${root}index.html`,
         ink: `${root}ink/index.html`,
         store: `${root}store/index.html`,
+        codec: `${root}store/codec.html`,
       },
     },
   },

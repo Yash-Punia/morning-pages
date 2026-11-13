@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>S2b · Point codec size</title>
+  </head>
+  <body>
+    <main>
+      <h1>S2b · Point codec size on real pages</h1>
+      <p>
+        Budget: a dense handwritten page under <strong>150 KB</strong> (PRD §12.1). Load pages exported from S1. On the
+        dev server, samples in <code>spikes/samples/</code> load automatically.
+      </p>
+      <p><input id="files" type="file" accept=".json,application/json" multiple /></p>
+      <table id="table"></table>
+      <p id="eps"></p>
+      <canvas id="view"></canvas>
+    </main>
+    <script type="module" src="./codec-page.ts"></script>
+  </body>
+</html>

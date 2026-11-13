@@ -2,6 +2,7 @@
 const spikes: [href: string, label: string][] = [
   ['/ink/', 'S1 · Ink latency (and S1b iOS suppression)'],
   ['/store/', 'S2 · IndexedDB durability torture'],
+  ['/store/codec.html', 'S2b · Point codec size on real pages'],
 ];
 
 document.getElementById('spikes')!.append(
