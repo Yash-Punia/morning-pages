@@ -32,6 +32,12 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  headers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: node scripts/check-headers.mjs
+
   e2e:
     runs-on: ubuntu-latest
     steps:

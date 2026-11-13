@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.env*
+# Throwaway prototypes and private handwriting samples: never part of the app upload
+spikes/

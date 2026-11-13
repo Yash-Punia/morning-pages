@@ -9,3 +9,4 @@ spikes/samples/
 test-results/
 playwright-report/
 .vitest/
+.env*
