@@ -57,6 +57,7 @@ export default defineConfig(({ mode }) => ({
         ink: `${root}ink/index.html`,
         store: `${root}store/index.html`,
         codec: `${root}store/codec.html`,
+        pwa: `${root}pwa/index.html`,
       },
     },
   },
