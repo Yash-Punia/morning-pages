@@ -49,6 +49,7 @@ export default defineConfig(({ mode }) => ({
       input: {
         main: `${root}index.html`,
         ink: `${root}ink/index.html`,
+        store: `${root}store/index.html`,
       },
     },
   },

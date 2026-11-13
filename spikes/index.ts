@@ -1,6 +1,7 @@
 // Spike index. Each spike adds itself here and to vite.config.ts build inputs.
 const spikes: [href: string, label: string][] = [
   ['/ink/', 'S1 · Ink latency (and S1b iOS suppression)'],
+  ['/store/', 'S2 · IndexedDB durability torture'],
 ];
 
 document.getElementById('spikes')!.append(

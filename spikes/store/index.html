@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- Installable on its own so S2 can run inside the Home Screen container. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="MP Torture" />
+    <title>S2 · Durability torture</title>
+  </head>
+  <body>
+    <main>
+      <h1>S2 · IndexedDB durability torture</h1>
+      <p>
+        Auto: reloads at random moments for N cycles. Manual: background the app, lock the iPad and kill it from the
+        app switcher while it runs. Every boot replays recovery records, then verifies that no acknowledged stroke is
+        missing and that there are no gaps or duplicates.
+      </p>
+      <p id="verdict">Not started.</p>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
