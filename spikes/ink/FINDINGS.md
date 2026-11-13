@@ -34,6 +34,22 @@
 - Coalesced on vs off: _pending_
 - Hover nib preview shows before contact? _pending_
 
+## S1b · iOS suppression and palm checklist
+
+Run with **palm guard on**, then repeat the starred rows with it **off** to see what the guard buys. Save results after each run (the HUD counts pans started, pans cancelled by the pen, and touches ignored).
+
+| Check | Result |
+| --- | --- |
+| Palm resting on the glass while writing leaves no marks | _pending_ |
+| Palm resting does not scroll the page while writing ★ | _pending_ |
+| Palm lands *before* the Pencil: page does not jump ★ | _pending_ |
+| Long-press with the Pencil shows no selection loupe or callout | _pending_ |
+| Double-tap (finger or Pencil) does not zoom | _pending_ |
+| No Scribble text-insertion overlay appears | _pending_ |
+| Stroke near the screen edge is not stolen by system gestures | _pending_ |
+| One finger scrolls the page smoothly when the Pencil is idle | _pending_ |
+| Fast 5-minute scribble session: no stray marks, no system UI | _pending_ |
+
 ## Conclusions and decision updates
 
 _pending: confirm or amend D-008 (Canvas 2D), the TDD §5.7 frame budget if rAF runs at 60 Hz, and whether long strokes need prefix freezing (TDD §5.4)._

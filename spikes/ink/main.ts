@@ -17,7 +17,11 @@ const PRESETS: Record<Preset, StrokeOptions> = {
 };
 const INK = '#1e2a3a';
 
-const opts = { coalesced: true, predicted: true, preset: 'fountain' as Preset };
+const opts = { coalesced: true, predicted: true, preset: 'fountain' as Preset, palmGuard: true };
+const PALM_GUARD_MS = 500; // ignore finger touches this long after the pen lifts
+let pan = { x: 0, y: 0 }; // page space = client - pan (S1b, D-007)
+let touchPan: { id: number; sx: number; sy: number; px: number; py: number } | null = null;
+let lastPenUp = -Infinity;
 const strokes: Stroke[] = [];
 let cur: (Stroke & { pointerId: number }) | null = null;
 let predicted: Pt[] = [];
@@ -35,13 +39,24 @@ function resize() {
   for (const [el, ctx] of [[committedEl, committed], [liveEl, live]] as const) {
     el.width = Math.round(innerWidth * dpr);
     el.height = Math.round(innerHeight * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = INK;
   }
-  committed.clearRect(0, 0, innerWidth, innerHeight);
-  for (const s of strokes) fill(committed, s.pts, s.preset, true);
+  redrawCommitted();
 }
 addEventListener('resize', resize);
+
+function clear(ctx: CanvasRenderingContext2D) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const dpr = devicePixelRatio;
+  ctx.setTransform(dpr, 0, 0, dpr, pan.x * dpr, pan.y * dpr);
+}
+
+// ponytail: full redraw on pan; the real app uses cached tiles (TDD §5.5).
+function redrawCommitted() {
+  clear(committed);
+  for (const s of strokes) fill(committed, s.pts, s.preset, true);
+}
 
 function fill(ctx: CanvasRenderingContext2D, pts: Pt[], preset: Preset, complete: boolean) {
   const outline = getStroke(pts, { ...PRESETS[preset], last: complete });
@@ -68,13 +83,42 @@ function sample(e: PenEvent, down = false): Pt {
   if (p !== 0.5 && p !== 0) stats.hasPressure = true;
   const alt = e.altitudeAngle ?? Math.PI / 2;
   if (alt !== Math.PI / 2) stats.hasTilt = true;
-  return [e.clientX, e.clientY, p, alt, e.azimuthAngle ?? 0, e.timeStamp];
+  return [e.clientX - pan.x, e.clientY - pan.y, p, alt, e.azimuthAngle ?? 0, e.timeStamp];
 }
+
+// ---- S1b: iOS suppression + finger pan with palm guard -----------------------
+// Non-passive touch listeners stop the selection loupe, callout and double-tap zoom
+// that CSS alone does not always prevent. Pointer events still fire.
+for (const type of ['touchstart', 'touchmove'] as const)
+  liveEl.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+
+const palm = { pansStarted: 0, pansCancelledByPen: 0, touchesIgnored: 0 };
+function palmStats() {
+  set('pans started', palm.pansStarted);
+  set('pans cancelled by pen (palm landed first)', palm.pansCancelledByPen);
+  set('touches ignored (palm guard)', palm.touchesIgnored);
+}
+
+liveEl.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch') return;
+  if (opts.palmGuard && (cur || performance.now() - lastPenUp < PALM_GUARD_MS)) { palm.touchesIgnored++; return palmStats(); }
+  if (touchPan) return; // one finger pans; extra fingers are ignored in this spike
+  touchPan = { id: e.pointerId, sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y };
+  palm.pansStarted++;
+});
+liveEl.addEventListener('pointermove', (e) => {
+  if (!touchPan || e.pointerId !== touchPan.id) return;
+  pan = { x: touchPan.px + e.clientX - touchPan.sx, y: touchPan.py + e.clientY - touchPan.sy };
+  redrawCommitted();
+});
+for (const type of ['pointerup', 'pointercancel'] as const)
+  liveEl.addEventListener(type, (e) => { if (touchPan?.id === e.pointerId) { touchPan = null; palmStats(); } });
 
 // ---- input ------------------------------------------------------------------
 liveEl.addEventListener('pointerdown', (e: PenEvent) => {
   if (e.pointerType !== 'pen') return;
   const t0 = performance.now();
+  if (touchPan) { touchPan = null; palm.pansCancelledByPen++; palmStats(); } // a "pan" that was really a palm
   try { liveEl.setPointerCapture(e.pointerId); } catch { /* synthetic test pointers can't be captured */ }
   setBusy(true);
   nib = null;
@@ -88,7 +132,7 @@ liveEl.addEventListener('pointerdown', (e: PenEvent) => {
 liveEl.addEventListener('pointermove', (e: PenEvent) => {
   if (e.pointerType !== 'pen') return;
   if (!cur) {
-    if (e.buttons === 0) { nib = { x: e.clientX, y: e.clientY }; needsDraw = true; } // PEN-8 hover
+    if (e.buttons === 0) { nib = { x: e.clientX - pan.x, y: e.clientY - pan.y }; needsDraw = true; } // PEN-8 hover
     return;
   }
   if (e.pointerId !== cur.pointerId) return; // compare the parent event only (Safari 18.2 coalesced id bug)
@@ -110,8 +154,9 @@ function end(e: PenEvent) {
   cur = null;
   predicted = [];
   strokes.push(s);
+  lastPenUp = performance.now();
   fill(committed, s.pts, s.preset, true);
-  live.clearRect(0, 0, innerWidth, innerHeight);
+  clear(live);
   if (e.type !== 'pointerup') note(`stroke ended by ${e.type} (kept, ${s.pts.length} pts)`);
   report(s);
   setBusy(false);
@@ -132,7 +177,7 @@ function frame(now: number) {
   if (needsDraw) {
     needsDraw = false;
     const t0 = performance.now();
-    live.clearRect(0, 0, innerWidth, innerHeight);
+    clear(live);
     if (cur) {
       const pts = predicted.length ? cur.pts.concat(predicted) : cur.pts;
       fill(live, pts, cur.preset, false);
@@ -191,7 +236,8 @@ const presetBtn = button(`pen: ${opts.preset}`, () => {
   opts.preset = opts.preset === 'fountain' ? 'ballpoint' : 'fountain';
   presetBtn.textContent = `pen: ${opts.preset}`;
 });
-button('Clear', () => { strokes.length = 0; resize(); });
+toggle('palm guard', true, (v) => (opts.palmGuard = v));
+button('Clear', () => { strokes.length = 0; pan = { x: 0, y: 0 }; redrawCommitted(); });
 button('Export page', () =>
   saveJson('/__sample', {
     kind: 'morning-pages-sample', version: 1, userAgent: navigator.userAgent, dpr: devicePixelRatio,

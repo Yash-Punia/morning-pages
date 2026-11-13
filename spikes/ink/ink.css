@@ -3,13 +3,19 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   background: #f7f3ea;
+  /* PEN-2: no text selection, loupe or callout menu anywhere on the writing screen. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 canvas {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
-  /* PEN-2 baseline: without this the Pencil scrolls the page instead of drawing. */
+  /* No native pan/zoom/double-tap: the app owns all gestures (D-007). */
   touch-action: none;
 }
