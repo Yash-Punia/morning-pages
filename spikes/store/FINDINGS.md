@@ -20,6 +20,9 @@
 | `npm run torture -- 5 8` | 5 | 42 | 0 | 0 | 0 | 93 / 108 ms |
 | `npm run torture -- 30 1` | 30 | 54 | 0 | 0 | 15 | — / 106 ms |
 | Browser pane, manual, "Simulate connection loss" | 0 | 34 | 0 | 0 | — | 1 retry after `DatabaseClosedError`, queue drained |
+| `npm run torture -- 10 8` (reload after 30–70 acks + 0–250 ms jitter) | 10 | 518 | 0 | 0 | 0 | — / 109 ms |
+
+**Auto mode volume:** reloads now trigger after a random 30–70 acknowledged strokes (~52 per cycle measured), so **200 cycles ≈ 10,400 strokes** at ×8. At ×8 strokes finish inside 250 ms, so recovery replay is exercised by the ×1 runs (manual mode, or `npm run torture -- 30 1`), not by auto mode.
 
 Not exercised headless: "recovery skipped (already committed)", which needs a stale recovery write landing after its commit (rare by design), and real WebKit "connection lost" errors after backgrounding.
 

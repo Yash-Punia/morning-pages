@@ -139,12 +139,22 @@ function genPoints(seq: number): Float32Array {
 let inflight: { id: string; seq: number; pts: Float32Array; done: number; committed: boolean } | null = null;
 let nextSeq = 0;
 
+// Auto mode reloads after a random 30–70 acknowledged strokes, then a 0–250 ms jitter
+// so the reload lands mid-stroke or mid-transaction. 200 cycles ≈ 10,000 strokes.
+let ackedThisBoot = 0;
+const reloadAfter = 30 + Math.floor(Math.random() * 41);
+let reloading = false;
+
 function commit(id: string, seq: number, pts: Float32Array) {
   const op: Op = { id, pageId: PAGE, seq, createdAt: Date.now(), n: pts.length / 6, pts };
   ledger.written++;
   return enqueueStroke(op).then(() => {
     ledger.acked = Math.max(ledger.acked, seq);
     saveLedger();
+    if (ledger.running && ledger.auto && ++ackedThisBoot >= reloadAfter && !reloading) {
+      reloading = true;
+      setTimeout(() => location.reload(), Math.random() * 250);
+    }
   });
 }
 
@@ -219,10 +229,7 @@ async function boot() {
   }
   saveLedger();
   showStats();
-  if (ledger.running) {
-    runner();
-    if (ledger.auto) setTimeout(() => { saveLedger(); location.reload(); }, 500 + Math.random() * 2500);
-  }
+  if (ledger.running) runner();
 }
 
 // ---- reporting ------------------------------------------------------------------
@@ -267,7 +274,7 @@ async function newRun(auto: boolean, speed: number, cycles = 200) {
 }
 
 hud('store');
-button('Start auto (200 reloads)', () => newRun(true, 4));
+button('Start auto (200 reloads, ~10k strokes)', () => newRun(true, 8));
 button('Start manual', () => newRun(false, 1));
 button('Stop', () => { ledger.running = false; saveLedger(); showStats(); });
 button('Simulate connection loss', () => { db.close(); note('db closed by test'); });
