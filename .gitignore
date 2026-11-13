@@ -3,3 +3,8 @@ dist/
 .vercel/
 # Real handwriting pages from the owner: never commit (public repo)
 spikes/samples/
+# Local-only Claude Code settings
+.claude/settings.local.json
+# Test output
+test-results/
+playwright-report/
