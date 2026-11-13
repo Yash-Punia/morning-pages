@@ -741,7 +741,7 @@ Not used: `bolder`, `overdrive` (conflict with "calm, not gamified").
 ### 12.3 Detector in CI
 
 ```bash
-npx impeccable detect --fast --json src/
+npx impeccable detect --github src/
 ```
 
 Runs in CI on every PR. Starts as a warning (annotated in the PR) during M1–M2 while the design system forms; becomes **blocking** from the MVP release onward.
