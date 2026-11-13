@@ -12,6 +12,20 @@
 3. Toggle **predicted** off and write a few lines, then **coalesced** off; note whether you can feel the difference.
 4. Tap **Export page** for each dense page you write. These become the S2b samples (`spikes/samples/`) and later S4 inputs.
 
+## Round 1 (2026-11-13): owner report and fixes
+
+Owner ran `/ink/` in **Chrome for iOS** (`CriOS/157`, WebKit, iPadOS 26.6). Viewport 1192×1458 @2x. Verdict: **not paper-like.** Ink is offset from the nib on hover and on contact, and it is rough, with visible aliasing next to Apple's Journal app. The exported page (298 strokes, 49,151 samples) showed three causes:
+
+| Cause | Evidence | Fix |
+| --- | --- | --- |
+| **Repeated samples.** `getCoalescedEvents` repeats the previous batch's tail, so the stroke steps back on itself | 11,541 samples go back in time and 11,287 repeat a timestamp (~23%). Per-sample Δt runs 4, 4, −4, 4 ms | Keep only samples newer than the last one kept, predicted ones included. The HUD shows "repeated samples dropped" |
+| **Stretched canvas.** CSS size `100vh` vs backing size `innerHeight`. On iOS, `100vh` is the height without toolbars, so the canvas was scaled vertically: offset growing down the page, plus resampling blur | Code review; the iPad toolbars make the two differ | Canvas `width/height: 100%` of the fixed box. Backing pixels and pointer origin come from `getBoundingClientRect()`, re-measured with `ResizeObserver`. The HUD shows viewport vs canvas box vs backing |
+| **Coordinates quantised to 0.5 CSS px** (1 device px) | All x/y values end in .0 or .5 | Can't be fixed at the source. Smoothing absorbs it: the **smooth** button (streamline 0.35 / 0.5 / 0.65, default raised to 0.5) lets the owner pick on device |
+
+Checked in the desktop browser: a synthetic pen stroke, with batches repeating the previous tail, is drawn exactly on the pointer line, with nothing 6 px either side, and 81 repeats were dropped. Deployed to the stable URL.
+
+**Retest in Safari** (the product target; Chrome adds its own toolbars), at `https://morning-pages-spikes.vercel.app/ink/` or on the LAN dev server.
+
 ## Results
 
 | Measure | Budget | Fountain | Ballpoint |

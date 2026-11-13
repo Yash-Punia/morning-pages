@@ -13,9 +13,11 @@ body {
 }
 canvas {
   position: fixed;
+  /* 100% of a fixed box = the visible viewport. 100vh is the toolbar-less height on iOS,
+     so it stretched the canvas and offset the ink from the nib. */
   inset: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   /* No native pan/zoom/double-tap: the app owns all gestures (D-007). */
   touch-action: none;
 }

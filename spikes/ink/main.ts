@@ -17,7 +17,8 @@ const PRESETS: Record<Preset, StrokeOptions> = {
 };
 const INK = '#1e2a3a';
 
-const opts = { coalesced: true, predicted: true, preset: 'fountain' as Preset, palmGuard: true };
+const opts = { coalesced: true, predicted: true, preset: 'fountain' as Preset, palmGuard: true, streamline: 0.5 };
+const STREAMLINES = [0.35, 0.5, 0.65]; // on-device knob: higher = smoother, slightly more lag
 const PALM_GUARD_MS = 500; // ignore finger touches this long after the pen lifts
 let pan = { x: 0, y: 0 }; // page space = client - pan (S1b, D-007)
 let touchPan: { id: number; sx: number; sy: number; px: number; py: number } | null = null;
@@ -34,22 +35,30 @@ const liveEl = document.getElementById('live') as HTMLCanvasElement;
 const committed = committedEl.getContext('2d')!;
 const live = liveEl.getContext('2d', { desynchronized: true })!;
 
+// 1:1 mapping: backing pixels and pointer coords both come from the canvas's real box,
+// never from innerWidth/100vh, which disagree while iOS toolbars are showing.
+let origin = { x: 0, y: 0 };
+let scale = { x: 1, y: 1 };
 function resize() {
-  const dpr = devicePixelRatio;
+  const r = liveEl.getBoundingClientRect();
+  origin = { x: r.left, y: r.top };
   for (const [el, ctx] of [[committedEl, committed], [liveEl, live]] as const) {
-    el.width = Math.round(innerWidth * dpr);
-    el.height = Math.round(innerHeight * dpr);
+    el.width = Math.round(r.width * devicePixelRatio);
+    el.height = Math.round(r.height * devicePixelRatio);
     ctx.fillStyle = INK;
   }
+  scale = { x: liveEl.width / r.width, y: liveEl.height / r.height };
+  set('viewport (inner)', `${innerWidth}×${innerHeight}`);
+  set('canvas box', `${r.width}×${r.height} @ ${r.left},${r.top}`);
+  set('canvas backing px', `${liveEl.width}×${liveEl.height}`);
   redrawCommitted();
 }
-addEventListener('resize', resize);
+new ResizeObserver(() => resize()).observe(liveEl);
 
 function clear(ctx: CanvasRenderingContext2D) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  const dpr = devicePixelRatio;
-  ctx.setTransform(dpr, 0, 0, dpr, pan.x * dpr, pan.y * dpr);
+  ctx.setTransform(scale.x, 0, 0, scale.y, pan.x * scale.x, pan.y * scale.y);
 }
 
 // ponytail: full redraw on pan; the real app uses cached tiles (TDD §5.5).
@@ -59,7 +68,7 @@ function redrawCommitted() {
 }
 
 function fill(ctx: CanvasRenderingContext2D, pts: Pt[], preset: Preset, complete: boolean) {
-  const outline = getStroke(pts, { ...PRESETS[preset], last: complete });
+  const outline = getStroke(pts, { ...PRESETS[preset], streamline: opts.streamline, last: complete });
   if (outline.length < 2) return;
   ctx.beginPath();
   ctx.moveTo(outline[0][0], outline[0][1]);
@@ -72,7 +81,7 @@ function fill(ctx: CanvasRenderingContext2D, pts: Pt[], preset: Preset, complete
 const stats = {
   downEventTs: 0, firstInkMs: -1, samples: 0, emptyCoalesced: 0,
   handlerMs: 0, appWork: [] as number[], latency: [] as number[], lastEventTs: 0,
-  outlineMax: 0, frameDeltas: [] as number[], hasPressure: false, hasTilt: false,
+  outlineMax: 0, frameDeltas: [] as number[], hasPressure: false, hasTilt: false, dupes: 0,
 };
 const idleDeltas: number[] = [];
 
@@ -83,7 +92,15 @@ function sample(e: PenEvent, down = false): Pt {
   if (p !== 0.5 && p !== 0) stats.hasPressure = true;
   const alt = e.altitudeAngle ?? Math.PI / 2;
   if (alt !== Math.PI / 2) stats.hasTilt = true;
-  return [e.clientX - pan.x, e.clientY - pan.y, p, alt, e.azimuthAngle ?? 0, e.timeStamp];
+  return [e.clientX - origin.x - pan.x, e.clientY - origin.y - pan.y, p, alt, e.azimuthAngle ?? 0, e.timeStamp];
+}
+
+/** iPad WebKit repeats the previous batch's tail in getCoalescedEvents (seen: 23% of samples,
+ *  time going 4, 4, -4, 4 ms). Keep only samples newer than the last one kept. */
+function push(pts: Pt[], e: PenEvent) {
+  if (pts.length && e.timeStamp <= pts[pts.length - 1][5]) { stats.dupes++; return false; }
+  pts.push(sample(e));
+  return true;
 }
 
 // ---- S1b: iOS suppression + finger pan with palm guard -----------------------
@@ -123,7 +140,7 @@ liveEl.addEventListener('pointerdown', (e: PenEvent) => {
   setBusy(true);
   nib = null;
   Object.assign(stats, { downEventTs: e.timeStamp, firstInkMs: -1, samples: 1, emptyCoalesced: 0,
-    handlerMs: 0, appWork: [], latency: [], lastEventTs: e.timeStamp, outlineMax: 0, frameDeltas: [] });
+    handlerMs: 0, appWork: [], latency: [], lastEventTs: e.timeStamp, outlineMax: 0, frameDeltas: [], dupes: 0 });
   cur = { preset: opts.preset, pts: [sample(e, true)], pointerId: e.pointerId };
   needsDraw = true;
   stats.handlerMs += performance.now() - t0;
@@ -132,16 +149,17 @@ liveEl.addEventListener('pointerdown', (e: PenEvent) => {
 liveEl.addEventListener('pointermove', (e: PenEvent) => {
   if (e.pointerType !== 'pen') return;
   if (!cur) {
-    if (e.buttons === 0) { nib = { x: e.clientX - pan.x, y: e.clientY - pan.y }; needsDraw = true; } // PEN-8 hover
+    if (e.buttons === 0) { const [x, y] = sample(e); nib = { x, y }; needsDraw = true; } // PEN-8 hover
     return;
   }
   if (e.pointerId !== cur.pointerId) return; // compare the parent event only (Safari 18.2 coalesced id bug)
   const t0 = performance.now();
   let events: PenEvent[] = opts.coalesced ? (e.getCoalescedEvents?.() ?? []) : [];
   if (events.length === 0) { events = [e]; if (opts.coalesced) stats.emptyCoalesced++; }
-  for (const ev of events) cur.pts.push(sample(ev));
-  stats.samples += events.length;
-  predicted = opts.predicted ? (e.getPredictedEvents?.() ?? []).map((ev) => sample(ev)) : [];
+  for (const ev of events) if (push(cur.pts, ev)) stats.samples++;
+  const lastT = cur.pts[cur.pts.length - 1][5];
+  predicted = opts.predicted
+    ? (e.getPredictedEvents?.() ?? []).filter((ev) => ev.timeStamp > lastT).map((ev) => sample(ev)) : [];
   stats.lastEventTs = e.timeStamp;
   needsDraw = true;
   stats.handlerMs += performance.now() - t0;
@@ -149,7 +167,7 @@ liveEl.addEventListener('pointermove', (e: PenEvent) => {
 
 function end(e: PenEvent) {
   if (!cur || e.pointerId !== cur.pointerId) return;
-  if (e.type === 'pointerup') cur.pts.push(sample(e));
+  if (e.type === 'pointerup') push(cur.pts, e);
   const s = cur;
   cur = null;
   predicted = [];
@@ -212,6 +230,7 @@ function report(s: Stroke) {
   set('rAF Hz (measured)', med ? 1000 / med : 0);
   set('samples/s (last stroke)', durS > 0.05 ? stats.samples / durS : 0);
   set('points (last stroke)', s.pts.length);
+  set('repeated samples dropped (last stroke)', stats.dupes);
   set('empty coalesced lists', stats.emptyCoalesced);
   set('pen-down → first ink ms (event ts)', stats.firstInkMs);
   set('app work/frame p50 ms', median(stats.appWork));
@@ -235,6 +254,11 @@ toggle('predicted', true, (v) => (opts.predicted = v));
 const presetBtn = button(`pen: ${opts.preset}`, () => {
   opts.preset = opts.preset === 'fountain' ? 'ballpoint' : 'fountain';
   presetBtn.textContent = `pen: ${opts.preset}`;
+});
+const smoothBtn = button(`smooth: ${opts.streamline}`, () => {
+  opts.streamline = STREAMLINES[(STREAMLINES.indexOf(opts.streamline) + 1) % STREAMLINES.length];
+  smoothBtn.textContent = `smooth: ${opts.streamline}`;
+  redrawCommitted();
 });
 toggle('palm guard', true, (v) => (opts.palmGuard = v));
 button('Clear', () => { strokes.length = 0; pan = { x: 0, y: 0 }; redrawCommitted(); });
