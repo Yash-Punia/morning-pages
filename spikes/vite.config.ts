@@ -38,15 +38,18 @@ function saveToRepo(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [basicSsl(), saveToRepo()],
+// HTTPS is needed for the iPad over LAN (service workers, secure context).
+// `vite --mode http` serves plain HTTP for local smoke tests (localhost is secure anyway).
+export default defineConfig(({ mode }) => ({
+  plugins: [mode === 'http' ? [] : basicSsl(), saveToRepo()],
   server: { host: true },
   preview: { host: true },
   build: {
     rollupOptions: {
       input: {
         main: `${root}index.html`,
+        ink: `${root}ink/index.html`,
       },
     },
   },
-});
+}));
