@@ -827,7 +827,7 @@ Two layers, and neither carries journal content:
 
 ### 16.2 Still open
 
-- [ ] **Production domain** — must be settled before the MVP dogfood starts (M6.5, §11.3). Moving domains later strands installed journals.
+- [ ] **Production domain**: must be settled before the MVP dogfood starts (M6.5, §11.3). Moving domains later strands installed journals. Until then production is `morning-pages-rose.vercel.app`, holding test data only (D-039).
 
 ### 16.3 Future: accounts and cloud storage (not planned)
 
