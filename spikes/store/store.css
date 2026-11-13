@@ -1,0 +1,19 @@
+body {
+  margin: 0;
+  font: 16px/1.5 system-ui, sans-serif;
+  background: #f7f3ea;
+  color: #1e2a3a;
+}
+main {
+  max-width: 34rem;
+  padding: 1rem 1.25rem;
+}
+#verdict {
+  font-weight: 600;
+}
+#verdict.fail {
+  color: #b3261e;
+}
+#verdict.pass {
+  color: #2e6b3f;
+}

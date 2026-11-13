@@ -1,0 +1,24 @@
+{
+  "name": "morning-pages-spikes",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Phase 0 throwaway spikes for Morning Pages (see docs/Milestones.md M0)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "torture": "node store/torture.e2e.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "playwright": "^1.65.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  },
+  "dependencies": {
+    "dexie": "^4.4.7",
+    "perfect-freehand": "^1.2.3"
+  }
+}

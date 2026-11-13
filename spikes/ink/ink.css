@@ -1,0 +1,23 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: #f7f3ea;
+  /* PEN-2: no text selection, loupe or callout menu anywhere on the writing screen. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+canvas {
+  position: fixed;
+  /* 100% of a fixed box = the visible viewport. 100vh is the toolbar-less height on iOS,
+     so it stretched the canvas and offset the ink from the nib. */
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* No native pan/zoom/double-tap: the app owns all gestures (D-007). */
+  touch-action: none;
+}

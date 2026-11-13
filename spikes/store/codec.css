@@ -1,0 +1,23 @@
+main {
+  max-width: none;
+}
+table {
+  border-collapse: collapse;
+  font: 13px/1.4 ui-monospace, Menlo, monospace;
+}
+th,
+td {
+  padding: 3px 8px;
+  border-bottom: 1px solid rgb(30 42 58 / 0.15);
+  text-align: right;
+}
+th:first-child,
+td:first-child {
+  text-align: left;
+}
+canvas {
+  display: block;
+  margin-top: 0.5rem;
+  background: #fffdf8;
+  border: 1px solid rgb(30 42 58 / 0.15);
+}

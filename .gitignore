@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.vercel/
+# Real handwriting pages from the owner: never commit (public repo)
+spikes/samples/
