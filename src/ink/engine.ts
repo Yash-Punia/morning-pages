@@ -55,7 +55,7 @@ export class InkEngine {
     this.gestures = new Gestures({
       pan: (dx, dy) => { this.view.panBy(dx, dy); this.invalidate(true); },
       pinch: (f, cx, cy, dx, dy) => { this.view.zoomAt(this.view.zoom * f, cx, cy); this.view.panBy(dx, dy); this.invalidate(true); },
-      tap: () => {},
+      tap: (fingers) => (fingers === 2 ? this.undo() : this.redo()), // TDD 5.3
     });
 
     // PEN-2 / S1b: no selection loupe, callout, double-tap or pinch zoom from the browser.
@@ -69,6 +69,7 @@ export class InkEngine {
     this.listen(host, 'pointermove', (e) => this.onMove(e as PointerEvent));
     for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) this.listen(host, t, (e) => this.onUp(e as PointerEvent));
     this.listen(host, 'wheel', (e) => this.onWheel(e as WheelEvent), { passive: false });
+    this.listen(window, 'keydown', (e) => this.onKey(e as KeyboardEvent));
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -157,6 +158,31 @@ export class InkEngine {
     this.gestures.penEnd(e.timeStamp);
     inkMetrics.penUp();
     this.invalidate();
+  }
+
+  undo() {
+    if (this.stroke || this.erasing) return; // never mid-stroke
+    this.doc.undo();
+  }
+  redo() {
+    if (this.stroke || this.erasing) return;
+    this.doc.redo();
+  }
+
+  /** ⌘Z / ⇧⌘Z with a hardware keyboard (PRD 10.2); never while typing in a field. */
+  private onKey(e: KeyboardEvent) {
+    const t = e.target as HTMLElement | null;
+    if (t?.closest('input, textarea, select, [contenteditable]')) return;
+    if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) this.redo();
+      else this.undo();
+    } else if (key === 'y' && e.ctrlKey) {
+      e.preventDefault();
+      this.redo();
+    }
   }
 
   /** Strokes under the eraser disappear at once; the erase op is written at pen-up. */

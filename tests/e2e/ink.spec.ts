@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { drag, frame, inkAt } from './ink-helpers.ts';
+import { drag, frame, inkAt, tap } from './ink-helpers.ts';
 
 test.describe('writing surface', () => {
   test('suppresses iOS selection, callout and native gestures (PEN-2)', async ({ page }) => {
@@ -157,6 +157,33 @@ test.describe('writing surface', () => {
     await expect(ink).toHaveAttribute('data-strokes', '1');
     expect(await inkAt(page, 260, 500, 2)).toBe(false); // the whole stroke went, not just where it was touched
     expect(await inkAt(page, 260, 600, 2)).toBe(true);
+  });
+
+  test('undo and redo: keyboard shortcuts and two-/three-finger taps restore exact state', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 1366 });
+    await page.goto('/today');
+    const ink = page.locator('[data-ink]');
+    await frame(page);
+    await drag(page, 'pen', { x: 200, y: 500 }, { x: 500, y: 500 });
+    await drag(page, 'pen', { x: 200, y: 600 }, { x: 500, y: 600 });
+    await frame(page);
+    await page.keyboard.press('ControlOrMeta+z');
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-strokes', '1');
+    expect(await inkAt(page, 350, 600, 2)).toBe(false);
+    expect(await inkAt(page, 350, 500, 2)).toBe(true);
+    await page.keyboard.press('ControlOrMeta+Shift+z');
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-strokes', '2');
+    expect(await inkAt(page, 350, 600, 2)).toBe(true);
+
+    await page.waitForTimeout(600); // past the palm guard
+    await tap(page, 2);
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-strokes', '1');
+    await tap(page, 3);
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-strokes', '2');
   });
 
   test('one finger scrolls the page (D-007)', async ({ page }) => {
