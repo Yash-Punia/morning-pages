@@ -1,6 +1,7 @@
 // The entry being written: pages and their append-only op log (TDD 7.2). Visible strokes are a
-// fold of the ops; undo, redo and the eraser only ever append (DUR-2). In M2 this lives in
-// memory; M3 persists exactly these ops.
+// fold of the ops; undo, redo and the eraser only ever append (DUR-2). Every op, title and paper
+// change is reported through a hook, and the store (src/store/session.ts) saves exactly these.
+import type { EntryRef } from '../store/db.ts';
 import { pointsBox } from './stroke.ts';
 import { A5_HEIGHT, PAGE_GAP, PAGE_WIDTH, type Box, type InkId, type Op, type Page, type PaperStyle, type Pt, type StrokeOp, type ToolId } from './types.ts';
 
@@ -30,11 +31,43 @@ export class InkDoc {
   private redoStack: Step[] = [];
   /** The entry's typed title (Entry.title, TDD 7.2); empty means untitled. */
   title = '';
+  /** Which entry this is: ids are assigned when it is opened, and stored with its first write. */
+  readonly entry: EntryRef;
   /** Called with the document-space area that changed, and the stroke when one was added. */
   onChange: (box: Box, added?: StrokeOp) => void = () => {};
+  /** Every op as it is appended, with the page it belongs to: the store saves these. */
+  onOp: (op: Op, page: Page) => void = () => {};
+  onTitle: (title: string) => void = () => {};
+  onPaper: (paper: PaperStyle) => void = () => {};
 
-  constructor(public paper: PaperStyle) {
-    this.addPage();
+  constructor(public paper: PaperStyle, entry?: EntryRef, pages: Page[] = []) {
+    this.entry = entry ?? { id: crypto.randomUUID(), journalId: 'default', entryDate: '', createdAt: Date.now() };
+    this.pages.push(...pages);
+    if (!pages.length) this.addPage();
+  }
+
+  /**
+   * A saved entry: its stored pages and ops, folded back into the visible strokes. A blank page
+   * always follows, as when it was written (stored pages always run 0…n−1, since a page is only
+   * added below one that has ink, and stored with its first op).
+   */
+  static load(entry: EntryRef, title: string, pages: Page[], ops: Op[], paper: PaperStyle): InkDoc {
+    const doc = new InkDoc(pages[0]?.paper ?? paper, entry, pages);
+    doc.title = title;
+    for (const op of ops) {
+      doc.ops.push(op);
+      if (op.kind === 'stroke') doc.all.set(op.id, op);
+      doc.seq.set(op.pageId, Math.max(doc.seq.get(op.pageId) ?? 0, op.seq));
+    }
+    doc.visible = fold(ops);
+    if (pages.length) doc.addPage();
+    return doc;
+  }
+
+  setTitle(title: string) {
+    if (title === this.title) return;
+    this.title = title;
+    this.onTitle(title);
   }
 
   /** Change the paper of every page in this entry (and of pages added later). */
@@ -42,6 +75,7 @@ export class InkDoc {
     if (paper === this.paper) return;
     this.paper = paper;
     for (const p of this.pages) p.paper = paper;
+    this.onPaper(paper);
     this.onChange(this.box);
   }
 
@@ -64,14 +98,15 @@ export class InkDoc {
   }
 
   /** Record a stroke drawn in document space; it belongs to the page where it started. */
-  addStroke(docPts: Pt[], tool: ToolId, color: InkId, size: number): StrokeOp {
+  addStroke(docPts: Pt[], tool: ToolId, color: InkId, size: number, id: string = crypto.randomUUID()): StrokeOp {
     const page = this.pageAt(docPts[0]![1]);
     const top = this.pageTop(page);
     const pts = docPts.map((p): Pt => [p[0], p[1] - top, p[2], p[3], p[4], p[5]]);
-    const op: StrokeOp = { kind: 'stroke', id: crypto.randomUUID(), pageId: page.id, seq: this.nextSeq(page.id), createdAt: Date.now(), tool, color, size, pts, bbox: pointsBox(pts, size) };
+    const op: StrokeOp = { kind: 'stroke', id, pageId: page.id, seq: this.nextSeq(page.id), createdAt: Date.now(), tool, color, size, pts, bbox: pointsBox(pts, size) };
     this.ops.push(op);
     this.all.set(op.id, op);
     this.visible.set(op.id, op);
+    this.onOp(op, page);
     this.undoStack.push({ kind: 'stroke', ids: [op.id] });
     this.redoStack.length = 0;
     this.onChange(this.docBox(op), op);
@@ -128,7 +163,9 @@ export class InkDoc {
       if (op) byPage.set(op.pageId, [...(byPage.get(op.pageId) ?? []), id]);
     }
     for (const [pageId, targets] of byPage) {
-      this.ops.push({ kind, id: crypto.randomUUID(), pageId, seq: this.nextSeq(pageId), createdAt: Date.now(), targets });
+      const op: Op = { kind, id: crypto.randomUUID(), pageId, seq: this.nextSeq(pageId), createdAt: Date.now(), targets };
+      this.ops.push(op);
+      this.onOp(op, this.page(pageId));
       for (const id of targets) {
         const op = this.all.get(id)!;
         if (kind === 'erase') this.visible.delete(id);

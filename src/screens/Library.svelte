@@ -1,34 +1,38 @@
 <script lang="ts">
   import type { Params } from '../router.ts';
-  import { startedEntry } from '../ink/session.ts';
+  import { db } from '../store/db.ts';
+  import { listEntries } from '../store/entries.ts';
+  import { fromLocalDate, localDate, saved } from '../store/session.ts';
   import Icon from '../ui/Icon.svelte';
   let { params: _ }: { params: Params } = $props();
 
-  // M2: only today's entry exists, in memory. M3 saves entries to the device; the full list of
-  // past mornings (by title, newest first) arrives with M4's Library.
-  const entry = startedEntry();
-  const date = entry && new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(entry.date);
-  const pages = entry ? entry.doc.pages.length - 1 || 1 : 0; // the trailing blank page isn't counted
+  // Saved entries, read once every pending write is on disk. M4 brings the full Library.
+  const today = localDate(new Date());
+  const rows = saved().then(() => listEntries(db())).then((r) => r.filter((e) => e.entryDate === today));
+  const longDate = (d: string) => new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(fromLocalDate(d));
 </script>
 
 <section class="screen" aria-labelledby="library-title">
   <h1 id="library-title" class="screen-title">Library</h1>
-  {#if entry}
-    <ul>
-      <li>
-        <a href="/today">
-          <span class="text">
-            <span class="title" class:untitled={!entry.doc.title}>{entry.doc.title || 'Untitled'}</span>
-            <span class="meta">{date} · {pages} {pages === 1 ? 'page' : 'pages'}</span>
-          </span>
-          <Icon name="arrow-right" size={20} />
-        </a>
-      </li>
-    </ul>
-    <p class="lede">Earlier mornings will gather here once pages are saved on this iPad.</p>
-  {:else}
-    <p class="lede">Your past mornings will gather here, one page at a time.</p>
-  {/if}
+  {#await rows then rows}
+    {#if rows.length}
+      <ul>
+        {#each rows as entry (entry.id)}
+          <li>
+            <a href="/today">
+              <span class="text">
+                <span class="title" class:untitled={!entry.title}>{entry.title || 'Untitled'}</span>
+                <span class="meta">{longDate(entry.entryDate)} · {entry.pages} {entry.pages === 1 ? 'page' : 'pages'}</span>
+              </span>
+              <Icon name="arrow-right" size={20} />
+            </a>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p class="lede">Your past mornings will gather here, one page at a time.</p>
+    {/if}
+  {/await}
 </section>
 
 <style>

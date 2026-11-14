@@ -34,7 +34,7 @@
     enterkeyhint="done"
     maxlength="120"
     value={doc.title}
-    oninput={(e) => (doc.title = (e.currentTarget as HTMLInputElement).value)}
+    oninput={(e) => doc.setTitle((e.currentTarget as HTMLInputElement).value)}
     onkeydown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
   />
 </div>

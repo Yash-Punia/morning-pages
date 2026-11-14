@@ -1,7 +1,7 @@
 // Wires the writing surface together: sizing, iOS suppression, input, gestures, rendering.
 // Plain TS outside Svelte reactivity (TDD 3). Two layers: `committed` composites cached tiles of
 // finished ink; `live` redraws only the stroke in progress (and its predicted tail) each frame.
-import { fingerDrawing, inkPaper, inkSmoothing } from '../settings.ts';
+import { fingerDrawing, inkSmoothing } from '../settings.ts';
 import { drawPaper, SIDE, TITLE } from './paper.ts';
 import { resolveToken, watchTheme } from './colors.ts';
 import { Gestures } from './gestures.ts';
@@ -52,7 +52,6 @@ export class InkEngine {
   ) {
     this.doc = doc;
     this.titleEl = title;
-    doc.setPaper(inkPaper.get()); // the Settings choice applies to today's pages too
     this.dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
     this.view.docHeight = this.doc.height;
     this.doc.onChange = (box, added) => this.changed(box, added);

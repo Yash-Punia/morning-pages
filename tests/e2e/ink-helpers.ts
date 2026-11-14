@@ -63,4 +63,8 @@ export async function inkAt(page: Page, x: number, y: number, radius = 1) {
   }, { x, y, radius });
 }
 
-export const frame = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+/** Two frames, once the writing surface is mounted (Today opens its entry from the store first). */
+export async function frame(page: Page) {
+  await page.waitForFunction(() => '__ink' in window && document.querySelector('[data-ink]'));
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
