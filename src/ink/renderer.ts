@@ -14,8 +14,8 @@ export const tileUnits = (res: number) => TILE_PX / res;
 /** 24 tiles of 1024² RGBA: ≈ 100 MB (TDD 5.5). */
 export const PIXEL_BUDGET = 24 * TILE_PX * TILE_PX;
 
-export type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
-export type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+export type AnyCanvas = HTMLCanvasElement;
+export type Ctx2D = CanvasRenderingContext2D;
 
 export interface Tile { key: string; col: number; row: number; res: number; canvas: AnyCanvas; pixels: number }
 
@@ -28,8 +28,9 @@ export const tileBox = (col: number, row: number, res: number): Box => {
 };
 export const overlaps = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 
-const makeCanvas = (w: number, h: number): AnyCanvas =>
-  typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
+// Detached <canvas> tiles, not OffscreenCanvas: same memory behaviour, and it is the path the
+// e2e suite exercises (Playwright's WebKit lacks OffscreenCanvas), so the iPad runs tested code.
+const makeCanvas = (w: number, h: number): AnyCanvas => Object.assign(document.createElement('canvas'), { width: w, height: h });
 
 /** Least-recently-used tiles under a pixel budget. Evicted tiles release memory at once. */
 export class TileCache {
