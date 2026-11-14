@@ -49,6 +49,7 @@
   --radius-pill: 999px;
   --hairline: 1px;
   --target: 44px;          /* minimum touch target (PRD 10.4) */
+  --tabbar-h: calc(var(--target) + var(--space-5) + env(safe-area-inset-bottom)); /* below 900 px */
   --rail-collapsed: 4.5rem;
   --rail-open: 15rem;
 
