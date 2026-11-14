@@ -88,3 +88,31 @@ test('a stroke in progress is kept when the app is hidden or closed (DUR-3)', as
   await frame(page);
   await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '2');
 });
+
+/** The recovery write has landed (15 ms on the iPad, ~100 ms in headless WebKit on Windows). */
+const mirrored = (page: Page) => page.evaluate(() => (window as unknown as { __store: { writes: { idle(): Promise<void> } } }).__store.writes.idle());
+
+/** A kill: iPadOS ends the app with no pagehide, so nothing gets to save the stroke in progress. */
+async function kill(page: Page) {
+  await page.evaluate(() => { (window as unknown as { __ink: { flush(): void } }).__ink.flush = () => {}; });
+  await page.reload();
+  await frame(page);
+}
+
+test('killed during the first stroke of the morning: after relaunch the entry and the stroke are back (DUR-4)', async ({ page }) => {
+  await penWithoutLift(page, 500, 40); // ~0.4 s of writing: mirrored at the first sample and again later
+  await mirrored(page);
+  await kill(page);
+  await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '1');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page.getByRole('link', { name: /Untitled/ })).toBeVisible();
+});
+
+test('a stroke shorter than 250 ms is covered too: it is mirrored from its first sample (D-017)', async ({ page }) => {
+  await drag(page, 'pen', { x: 200, y: 400 }, { x: 400, y: 400 }); // an earlier, saved stroke
+  await penWithoutLift(page, 600, 3); // an i-dot's worth of writing
+  await mirrored(page);
+  await kill(page);
+  await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '2');
+  expect(await count(page, 'recovery')).toBe(0);
+});

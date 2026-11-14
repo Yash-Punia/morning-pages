@@ -16,7 +16,7 @@ import { NIB_ANGLE, strokePath } from './stroke.ts';
 import { A5_HEIGHT, PAGE_WIDTH, type Box, type Pt, type StrokeOp } from './types.ts';
 import { Viewport } from './viewport.ts';
 
-interface Live { pointerId: number; pts: Pt[]; pred: Pt[]; finger: boolean; last: [number, number] }
+interface Live { id: string; pointerId: number; pts: Pt[]; pred: Pt[]; finger: boolean; last: [number, number] }
 interface Erasing { pointerId: number; ids: Set<string>; at: [number, number] }
 export type Mode = 'pen' | 'eraser';
 const ERASER_RADIUS = 10; // page units
@@ -158,6 +158,7 @@ export class InkEngine {
     appendSamples(s.pts, pts);
     s.last = [e.clientX, e.clientY];
     s.pred = s.finger ? [] : predicted(e, s.pts[s.pts.length - 1]![5], this.toDoc);
+    this.draft(s);
     this.invalidate();
   }
 
@@ -182,7 +183,9 @@ export class InkEngine {
       this.eraseAt(this.erasing.at);
       return;
     }
-    this.stroke = { pointerId: e.pointerId, pts: [this.sample(e, finger, true)], pred: [], finger, last: [e.clientX, e.clientY] };
+    // The op id is assigned at pen-down, so the recovery mirror and the saved stroke share it (TDD 6.3).
+    this.stroke = { id: crypto.randomUUID(), pointerId: e.pointerId, pts: [this.sample(e, finger, true)], pred: [], finger, last: [e.clientX, e.clientY] };
+    this.draft(this.stroke);
     inkMetrics.penDown(e.timeStamp);
     this.invalidate();
   }
@@ -201,7 +204,7 @@ export class InkEngine {
     if (!s || e.pointerId !== s.pointerId) return;
     // The pointerup sample is the lift-off (~4 px jump, pressure 0): never recorded (D-036).
     this.stroke = null;
-    this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size);
+    this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size, s.id);
     if (!s.finger) this.gestures.penEnd(e.timeStamp); // palm guard after the Pencil, not after a finger
     inkMetrics.penUp();
     this.invalidate();
@@ -211,10 +214,14 @@ export class InkEngine {
   flush() {
     const s = this.stroke, er = this.erasing;
     this.stroke = this.erasing = null;
-    if (s) this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size);
+    if (s) this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size, s.id);
     if (er) this.doc.erase([...er.ids]);
     if ((s && !s.finger) || er) this.gestures.penEnd(performance.now()); // its pointerup may never come
     if (s || er) this.invalidate(true);
+  }
+
+  private draft(s: Live) {
+    this.doc.draft(s.id, s.pts, this.preset.tool, this.preset.color, this.preset.size);
   }
 
   undo() {

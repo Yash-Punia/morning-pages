@@ -18,6 +18,8 @@ export function fold(ops: Op[]): Map<string, StrokeOp> {
   return all;
 }
 
+const RECOVERY_MS = 250;
+
 /** One user action, for undo: strokes added, or strokes erased by one eraser gesture. */
 type Step = { kind: 'stroke' | 'erase'; ids: string[] };
 
@@ -97,11 +99,31 @@ export class InkDoc {
     return this.pages[Math.min(this.pages.length - 1, Math.max(0, i))]!;
   }
 
-  /** Record a stroke drawn in document space; it belongs to the page where it started. */
-  addStroke(docPts: Pt[], tool: ToolId, color: InkId, size: number, id: string = crypto.randomUUID()): StrokeOp {
+  /** The page a stroke belongs to (where it started), and its points in that page's space. */
+  private onPage(docPts: Pt[]): [Page, Pt[]] {
     const page = this.pageAt(docPts[0]![1]);
     const top = this.pageTop(page);
-    const pts = docPts.map((p): Pt => [p[0], p[1] - top, p[2], p[3], p[4], p[5]]);
+    return [page, docPts.map((p): Pt => [p[0], p[1] - top, p[2], p[3], p[4], p[5]])];
+  }
+
+  private draftId = '';
+  private draftAt = -Infinity;
+  /**
+   * The stroke still being written, mirrored for crash recovery (DUR-4, D-017): at its first
+   * sample, then at most every 250 ms. `id` is the op id it will be saved under.
+   */
+  draft(id: string, docPts: Pt[], tool: ToolId, color: InkId, size: number, now = performance.now()) {
+    if (id === this.draftId && now - this.draftAt < RECOVERY_MS) return;
+    this.draftId = id;
+    this.draftAt = now;
+    const [page, pts] = this.onPage(docPts);
+    this.onDraft({ id, page, tool, color, size, pts });
+  }
+  onDraft: (d: { id: string; page: Page; tool: ToolId; color: InkId; size: number; pts: Pt[] }) => void = () => {};
+
+  /** Record a stroke drawn in document space; it belongs to the page where it started. */
+  addStroke(docPts: Pt[], tool: ToolId, color: InkId, size: number, id: string = crypto.randomUUID()): StrokeOp {
+    const [page, pts] = this.onPage(docPts);
     const op: StrokeOp = { kind: 'stroke', id, pageId: page.id, seq: this.nextSeq(page.id), createdAt: Date.now(), tool, color, size, pts, bbox: pointsBox(pts, size) };
     this.ops.push(op);
     this.all.set(op.id, op);
