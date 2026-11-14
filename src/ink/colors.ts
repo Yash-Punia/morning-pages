@@ -17,6 +17,14 @@ export function resolveToken(name: string): string {
   return value;
 }
 
+/** Any CSS colour as an rgb() string a canvas can paint. */
+export function canvasColor(css: string): string {
+  const key = `css:${css}`;
+  let v = cache.get(key);
+  if (!v) cache.set(key, (v = toRgb(css)));
+  return v;
+}
+
 function toRgb(css: string): string {
   pixel ??= Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true })!;
   pixel.clearRect(0, 0, 1, 1);

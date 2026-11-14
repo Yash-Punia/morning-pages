@@ -1,28 +1,35 @@
 // Wires the writing surface together: sizing, iOS suppression, input, gestures, rendering.
-// Grows step by step through M2; everything here is plain TS and testable through the DOM.
+// Plain TS outside Svelte reactivity (TDD 3). Two layers: `committed` composites cached tiles of
+// finished ink; `live` redraws only the stroke in progress (and its predicted tail) each frame.
 import { inkSmoothing } from '../settings.ts';
 import { resolveToken, watchTheme } from './colors.ts';
 import { Gestures } from './gestures.ts';
+import { inkColor } from './inks.ts';
 import { appendSamples, coalesced, predicted, toPt } from './input.ts';
+import { inkMetrics } from './metrics.ts';
+import { InkDoc } from './page.ts';
+import { overlaps, TileCache, tileBox, tileRes, tileUnits, type Ctx2D, type Tile } from './renderer.ts';
 import { outline, outlinePath } from './stroke.ts';
-import { A5_HEIGHT, type Pt, type ToolId } from './types.ts';
+import { A5_HEIGHT, PAGE_WIDTH, type Box, type InkId, type Pt, type StrokeOp, type ToolId } from './types.ts';
 import { Viewport } from './viewport.ts';
 
 interface Live { pointerId: number; pts: Pt[]; pred: Pt[] }
-interface Done { pts: Pt[]; tool: ToolId; size: number }
+export interface Preset { tool: ToolId; color: InkId; size: number }
 
 export class InkEngine {
   readonly view = new Viewport();
+  readonly doc = new InkDoc('lined-college');
+  preset: Preset = { tool: 'fountain', color: 'blueBlack', size: 5 };
+  private tiles = new TileCache();
   private gestures: Gestures;
   private ro: ResizeObserver;
   private off: (() => void)[] = [];
   private frameId = 0;
+  private composite = true; // the committed layer needs re-blitting
   /** Surface origin in client coordinates and the device pixel ratio (D-037). */
   private origin = { x: 0, y: 0 };
   private dpr = 1;
   private stroke: Live | null = null;
-  private done: Done[] = []; // ponytail: redrawn whole each frame; tiles replace this in 2.5
-  private preset = { tool: 'fountain' as ToolId, size: 5 };
   private smoothing = inkSmoothing.get();
 
   constructor(
@@ -30,10 +37,11 @@ export class InkEngine {
     private committed: HTMLCanvasElement,
     private live: HTMLCanvasElement,
   ) {
-    this.view.docHeight = A5_HEIGHT;
+    this.view.docHeight = this.doc.height;
+    this.doc.onChange = (box, added) => this.changed(box, added);
     this.gestures = new Gestures({
-      pan: (dx, dy) => { this.view.panBy(dx, dy); this.invalidate(); },
-      pinch: (f, cx, cy, dx, dy) => { this.view.zoomAt(this.view.zoom * f, cx, cy); this.view.panBy(dx, dy); this.invalidate(); },
+      pan: (dx, dy) => { this.view.panBy(dx, dy); this.invalidate(true); },
+      pinch: (f, cx, cy, dx, dy) => { this.view.zoomAt(this.view.zoom * f, cx, cy); this.view.panBy(dx, dy); this.invalidate(true); },
       tap: () => {},
     });
 
@@ -51,12 +59,10 @@ export class InkEngine {
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
-    this.off.push(watchTheme(() => this.invalidate()));
+    this.off.push(watchTheme(() => { this.tiles.drop(); this.invalidate(true); }));
     this.resize();
+    if (import.meta.env.VITE_E2E === '1') (window as unknown as { __ink: InkEngine }).__ink = this;
   }
-
-  /** Client coordinates → document space. */
-  private toDoc = (cx: number, cy: number): [number, number] => this.view.toDoc(cx - this.origin.x, cy - this.origin.y);
 
   /** Backing stores follow the element's own box, never innerWidth/100vh (D-037). */
   resize() {
@@ -68,13 +74,15 @@ export class InkEngine {
       c.height = Math.max(1, Math.round(r.height * this.dpr));
     }
     this.view.resize(r.width, r.height);
-    this.invalidate();
+    this.invalidate(true);
   }
 
   /** Client coordinates → surface CSS px. */
   private local(e: { clientX: number; clientY: number }): [number, number] {
     return [e.clientX - this.origin.x, e.clientY - this.origin.y];
   }
+  /** Client coordinates → document space. */
+  private toDoc = (cx: number, cy: number): [number, number] => this.view.toDoc(cx - this.origin.x, cy - this.origin.y);
 
   private onDown(e: PointerEvent) {
     const r = this.host.getBoundingClientRect(); // the spine may have moved the surface
@@ -103,6 +111,7 @@ export class InkEngine {
     this.gestures.penStart();
     try { this.host.setPointerCapture(e.pointerId); } catch { /* synthetic or already-released pointers */ }
     this.stroke = { pointerId: e.pointerId, pts: [toPt(e, this.toDoc, true)], pred: [] };
+    inkMetrics.penDown(e.timeStamp);
     this.invalidate();
   }
 
@@ -112,8 +121,9 @@ export class InkEngine {
     if (!s || e.pointerId !== s.pointerId) return;
     // The pointerup sample is the lift-off (~4 px jump, pressure 0): never recorded (D-036).
     this.stroke = null;
-    this.done.push({ pts: s.pts, ...this.preset });
+    this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size);
     this.gestures.penEnd(e.timeStamp);
+    inkMetrics.penUp();
     this.invalidate();
   }
 
@@ -122,45 +132,109 @@ export class InkEngine {
     e.preventDefault();
     if (e.ctrlKey || e.metaKey) this.view.zoomAt(this.view.zoom * Math.exp(-e.deltaY * 0.01), ...this.local(e));
     else this.view.panBy(-e.deltaX, -e.deltaY);
-    this.invalidate();
+    this.invalidate(true);
   }
 
-  invalidate() {
+  /** The document changed in `box`: paint an added stroke into cached tiles, or drop them. */
+  private changed(box: Box, added?: StrokeOp) {
+    this.view.docHeight = this.doc.height;
+    const res = this.res;
+    for (const t of [...this.tiles.overlapping(box)]) {
+      if (added && t.res === res) this.paintStroke(this.tiles.context(t), added);
+      else this.tiles.remove(t);
+    }
+    this.invalidate(true);
+  }
+
+  private get res() {
+    return tileRes(this.view.scale * this.dpr);
+  }
+
+  invalidate(committed = false) {
+    this.composite ||= committed;
     if (!this.frameId) this.frameId = requestAnimationFrame(() => this.frame());
   }
 
   private frame() {
     this.frameId = 0;
+    if (this.composite) this.drawCommitted();
+    this.composite = false;
+    this.drawLive();
+    const d = this.host.dataset; // readable state for tests and /diagnostics
     const v = this.view;
-    const ink = resolveToken('--ink');
-    const committed = this.begin(this.committed);
-    for (const d of this.done) this.fill(committed, d.pts, d.tool, d.size, ink, true);
-    const live = this.begin(this.live);
-    if (this.stroke) {
-      const s = this.stroke;
-      this.fill(live, s.pred.length ? s.pts.concat(s.pred) : s.pts, this.preset.tool, this.preset.size, ink, false);
-    }
-    // Readable state for tests and /diagnostics; cheap string writes only when values change.
-    const d = this.host.dataset;
-    const sy = v.sy.toFixed(1), zoom = v.zoom.toFixed(3);
-    if (d.scrollY !== sy) d.scrollY = sy;
-    if (d.zoom !== zoom) d.zoom = zoom;
+    const state = { scrollY: v.sy.toFixed(1), zoom: v.zoom.toFixed(3), pages: String(this.doc.pages.length), strokes: String(this.doc.strokeCount) };
+    for (const [k, val] of Object.entries(state)) if (d[k] !== val) d[k] = val;
   }
 
-  /** Clear a layer and set the document → device-pixel transform. */
-  private begin(canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext('2d')!;
-    const { scale: s, sx, sy } = this.view;
-    const k = s * this.dpr;
+  /** The tiles covering the visible part of the document, painted on first use. */
+  private visibleTiles(): Tile[] {
+    const { sx, sy } = this.view;
+    const res = this.res;
+    const u = tileUnits(res);
+    const [x1, y1] = this.view.toDoc(this.view.width, this.view.height);
+    const c0 = Math.max(0, Math.floor(sx / u)), c1 = Math.min(Math.ceil(PAGE_WIDTH / u) - 1, Math.floor(x1 / u));
+    const r0 = Math.max(0, Math.floor(sy / u)), r1 = Math.floor(Math.min(y1, this.doc.height) / u);
+    const out: Tile[] = [];
+    for (let r = r0; r <= r1; r++)
+      for (let c = c0; c <= c1; c++) out.push(this.tiles.get(c, r, res, (tile, tctx) => this.paintTile(tile, tctx)));
+    return out;
+  }
+
+  /** Blit visible tiles at whole device pixels, so tile edges never show seams. */
+  private drawCommitted() {
+    const ctx = this.committed.getContext('2d')!;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(k, 0, 0, k, -sx * k, -sy * k);
-    return ctx;
+    ctx.clearRect(0, 0, this.committed.width, this.committed.height);
+    ctx.imageSmoothingQuality = 'high';
+    const { sx, sy, scale } = this.view;
+    const k = scale * this.dpr;
+    for (const t of this.visibleTiles()) {
+      const [x0, y0, x1, y1] = tileBox(t.col, t.row, t.res);
+      const dx = Math.round((x0 - sx) * k), dy = Math.round((y0 - sy) * k);
+      ctx.drawImage(t.canvas, dx, dy, Math.round((x1 - sx) * k) - dx, Math.round((y1 - sy) * k) - dy);
+    }
   }
 
-  private fill(ctx: CanvasRenderingContext2D, pts: Pt[], tool: ToolId, size: number, color: string, complete: boolean) {
-    ctx.fillStyle = color;
-    ctx.fill(outlinePath(outline(pts, tool, size, this.smoothing, complete)));
+  private paintTile(t: Tile, ctx: Ctx2D) {
+    const box = tileBox(t.col, t.row, t.res);
+    ctx.fillStyle = resolveToken('--paper');
+    for (const page of this.doc.pages) {
+      const top = this.doc.pageTop(page);
+      if (overlaps(box, [0, top, PAGE_WIDTH, top + A5_HEIGHT])) ctx.fillRect(0, top, PAGE_WIDTH, A5_HEIGHT);
+    }
+    for (const op of this.doc.strokes()) if (overlaps(box, this.doc.docBox(op))) this.paintStroke(ctx, op);
+  }
+
+  private paintStroke(ctx: Ctx2D, op: StrokeOp) {
+    const top = this.doc.pageTop(this.doc.page(op.pageId));
+    ctx.save();
+    ctx.translate(0, top);
+    ctx.fillStyle = inkColor(op.color);
+    ctx.fill(this.pathOf(op));
+    ctx.restore();
+  }
+
+  /** Outlines are pure (D-036), so each committed stroke is built once and reused by every tile. */
+  private paths = new WeakMap<StrokeOp, Path2D>();
+  private pathOf(op: StrokeOp): Path2D {
+    let p = this.paths.get(op);
+    if (!p) this.paths.set(op, (p = outlinePath(outline(op.pts, op.tool, op.size, this.smoothing, true))));
+    return p;
+  }
+
+  private drawLive() {
+    const ctx = this.live.getContext('2d')!;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.live.width, this.live.height);
+    const s = this.stroke;
+    if (!s) return;
+    const { scale, sx, sy } = this.view;
+    const k = scale * this.dpr;
+    ctx.setTransform(k, 0, 0, k, -sx * k, -sy * k);
+    ctx.fillStyle = inkColor(this.preset.color);
+    const { tool, size } = this.preset;
+    ctx.fill(outlinePath(outline(s.pred.length ? s.pts.concat(s.pred) : s.pts, tool, size, this.smoothing, false)));
+    inkMetrics.drawn();
   }
 
   protected listen(target: EventTarget, type: string, fn: (e: Event) => void, opts?: AddEventListenerOptions) {
@@ -172,6 +246,7 @@ export class InkEngine {
     this.ro.disconnect();
     this.gestures.stopInertia();
     cancelAnimationFrame(this.frameId);
+    this.tiles.drop();
     for (const f of this.off) f();
   }
 }

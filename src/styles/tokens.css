@@ -21,6 +21,14 @@
   --sage: light-dark(oklch(54% 0.065 150), oklch(73% 0.065 150));
   --selection: light-dark(oklch(60.8% 0.132 44.2 / 0.22), oklch(68.5% 0.12 46 / 0.3));
 
+  /* Pen inks (PRD 4.3). Stored on strokes as palette ids, so a page written by day reads by night
+     too: each ink has a Paper and a Night value (TDD 5.5). */
+  --pen-black: light-dark(oklch(22% 0.008 265), oklch(94% 0.008 85));
+  --pen-blueBlack: light-dark(oklch(28.2% 0.034 255.8), oklch(92.4% 0.016 86));
+  --pen-sepia: light-dark(oklch(41% 0.07 55), oklch(80% 0.06 65));
+  --pen-forest: light-dark(oklch(39% 0.07 155), oklch(80% 0.07 155));
+  --pen-crimson: light-dark(oklch(45% 0.15 22), oklch(77% 0.11 20));
+
   /* Type. 1rem is the iOS body size (17 px by default) and follows Dynamic Type (base.css). */
   --font-ui: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
   --font-date: 'Fraunces Variable', ui-serif, Georgia, serif;

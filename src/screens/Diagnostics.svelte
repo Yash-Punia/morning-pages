@@ -2,6 +2,7 @@
   // D-018 skeleton: device facts only. The ink HUD, queue latency and the local log join in M2–M3.
   import type { Params } from '../router.ts';
   import { isInstalled } from '../pwa/standalone.ts';
+  import { inkMetrics } from '../ink/metrics.ts';
   import { version } from '../../package.json';
   let { params: _ }: { params: Params } = $props();
 
@@ -23,7 +24,18 @@
     () => (persisted = 'Unknown'),
   );
 
+  // TDD 5.7 budgets: first ink within one 120 Hz frame of app work, under 1 % dropped frames.
+  const ink = inkMetrics.summary();
+  const inkRows = ink.strokes
+    ? [
+        ['First ink after pen-down', `${ink.firstInkP50.toFixed(1)} ms typical, ${ink.firstInkP95.toFixed(1)} ms slowest 5 %`],
+        ['Frame rate while writing', `${Math.round(ink.hz)} Hz`],
+        ['Dropped frames while writing', `${ink.droppedPct.toFixed(1)} %`],
+      ]
+    : [['Writing performance', 'Write a few lines on Today, then come back']];
+
   const rows = $derived([
+    ...inkRows,
     ['Version', version],
     ['Running as', isInstalled() ? 'Home Screen app' : 'Safari tab'],
     ['Offline', sw],
