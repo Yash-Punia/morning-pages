@@ -24,7 +24,6 @@
     flex: none;
     aspect-ratio: 1000 / 1414;
     overflow: hidden;
-    border-radius: 2px;
     background: var(--paper);
     box-shadow: 0 0 0 var(--hairline) var(--rule);
   }
