@@ -1,85 +1,89 @@
-// Finger gestures on the writing surface (TDD 5.3, D-007, PEN-7). touch-action is none, so the
-// app owns scrolling: one finger pans with inertia, two fingers pinch and pan, quick two- and
-// three-finger taps are undo and redo. Fingers never ink here (palm rejection by input type).
+// Finger scrolling on the writing surface (D-042). touch-action is none, so the app owns
+// scrolling, and it does exactly one thing: one finger scrolls, with inertia. No pinch zoom and no
+// multi-finger taps: a resting palm registers as several touches and was read as gestures,
+// undoing strokes and zooming the page (owner feedback, M2). So:
+// - a second touch cancels any scroll until every finger has lifted;
+// - palm-sized contacts are ignored;
+// - the Pencil cancels any scroll, and touches just after it lifts are a resting palm.
 
 export interface GestureSink {
   pan(dx: number, dy: number): void;
-  /** Multiply zoom by `factor` around (cx, cy), then pan by (dx, dy). */
-  pinch(factor: number, cx: number, cy: number, dx: number, dy: number): void;
-  tap(fingers: 2 | 3): void;
 }
 
-const TAP_MS = 250;
-const TAP_TRAVEL = 10;
-const PALM_GUARD_MS = 500; // touches right after the pen lifts are a resting palm (S1b)
+const PALM_GUARD_MS = 500;
+const PALM_SIZE = 40; // CSS px of contact: a fingertip is ~10–25, a resting palm is larger
 const FRICTION = 0.998; // per ms, close to iOS's normal scroll deceleration
 const MIN_SPEED = 0.02; // px/ms
 
-type Touch = { x: number; y: number };
-
 export class Gestures {
-  private touches = new Map<number, Touch>();
-  private maxFingers = 0;
-  private startT = 0;
-  private travel = 0;
+  private finger: { id: number; x: number; y: number } | null = null;
+  private touches = new Set<number>();
+  private locked = false; // more than one contact: nothing scrolls until all lift
   private penDown = false;
   private penBlockUntil = -Infinity;
   private moves: { t: number; dx: number; dy: number }[] = [];
-  private pinchFrom: { dist: number; mx: number; my: number } | null = null;
   private inertia = 0;
+
+  private pair: Map<number, { x: number; y: number }> | null = null;
 
   constructor(
     private sink: GestureSink,
+    /** "Draw with finger" mode: one finger writes, so two fingers together scroll (no zoom). */
+    private twoFingerScroll = false,
     private raf: (cb: (t: number) => void) => number = (cb) => requestAnimationFrame(cb),
     private caf: (id: number) => void = (id) => cancelAnimationFrame(id),
   ) {}
 
-  /** Returns false when the touch is ignored (pen active or palm guard). */
-  down(id: number, x: number, y: number, t: number): boolean {
-    if (this.penDown || t < this.penBlockUntil) return false;
+  /** Returns true when this touch takes part in scrolling. */
+  down(id: number, x: number, y: number, t: number, contact = 0): boolean {
+    this.touches.add(id);
+    if (this.twoFingerScroll && this.touches.size === 2 && !this.locked && !this.penDown) {
+      this.pair = new Map([[id, { x, y }]]);
+      if (this.finger) this.pair.set(this.finger.id, { x: this.finger.x, y: this.finger.y });
+      this.finger = null;
+      return true;
+    }
+    if (this.touches.size > 1) { this.cancel(); this.locked = true; return false; }
+    if (this.penDown || t < this.penBlockUntil || contact > PALM_SIZE) { this.locked = true; return false; }
     this.stopInertia();
-    if (this.touches.size === 0) Object.assign(this, { startT: t, travel: 0, maxFingers: 0, moves: [] });
-    this.touches.set(id, { x, y });
-    this.maxFingers = Math.max(this.maxFingers, this.touches.size);
-    this.pinchFrom = this.touches.size >= 2 ? this.pinchState() : null;
+    this.finger = { id, x, y };
+    this.moves = [];
     return true;
   }
 
   move(id: number, x: number, y: number, t: number) {
-    const touch = this.touches.get(id);
-    if (!touch) return;
-    const dx = x - touch.x;
-    const dy = y - touch.y;
-    touch.x = x;
-    touch.y = y;
-    this.travel += Math.hypot(dx, dy);
-    if (this.touches.size === 1) {
-      this.sink.pan(dx, dy);
-      this.moves.push({ t, dx, dy });
-      while (this.moves.length && t - this.moves[0]!.t > 80) this.moves.shift();
-    } else if (this.pinchFrom) {
-      const now = this.pinchState();
-      this.sink.pinch(now.dist / this.pinchFrom.dist, now.mx, now.my, now.mx - this.pinchFrom.mx, now.my - this.pinchFrom.my);
-      this.pinchFrom = now;
+    const p = this.pair?.get(id);
+    if (p && this.pair!.size === 2) {
+      // Two fingers scroll by half of each finger's movement: the midpoint's travel.
+      this.sink.pan((x - p.x) / 2, (y - p.y) / 2);
+      p.x = x;
+      p.y = y;
+      return;
     }
+    const f = this.finger;
+    if (this.locked || !f || f.id !== id) return;
+    const dx = x - f.x, dy = y - f.y;
+    f.x = x;
+    f.y = y;
+    this.sink.pan(dx, dy);
+    this.moves.push({ t, dx, dy });
+    while (this.moves.length && t - this.moves[0]!.t > 80) this.moves.shift();
   }
 
   up(id: number, t: number) {
-    if (!this.touches.delete(id)) return;
-    if (this.touches.size >= 2) this.pinchFrom = this.pinchState();
-    else this.pinchFrom = null;
-    if (this.touches.size > 0) { this.moves = []; return; } // fingers lifting one by one: no fling
-    const quick = t - this.startT < TAP_MS && this.travel < TAP_TRAVEL;
-    if (quick && this.maxFingers >= 2) this.sink.tap(this.maxFingers >= 3 ? 3 : 2);
-    else if (this.maxFingers === 1) this.fling(t);
+    this.touches.delete(id);
+    if (this.pair?.has(id)) { this.pair = null; this.locked = this.touches.size > 0; } // no fling, no 1-finger takeover
+    const wasFinger = this.finger?.id === id && !this.locked;
+    if (this.finger?.id === id) this.finger = null;
+    if (wasFinger) this.fling(t);
+    if (this.touches.size === 0) this.locked = false;
   }
 
-  /** The pen always wins: it cancels any pan in progress (a palm that landed first) and inertia. */
+  /** The pen always wins: it cancels any scroll (a palm that landed first) and inertia. */
   penStart() {
     this.penDown = true;
-    this.touches.clear();
-    this.pinchFrom = null;
-    this.stopInertia();
+    this.cancel();
+    this.locked = this.touches.size > 0;
   }
   penEnd(t: number) {
     this.penDown = false;
@@ -90,9 +94,11 @@ export class Gestures {
     return this.touches.size > 0 || this.inertia !== 0;
   }
 
-  private pinchState() {
-    const [a, b] = [...this.touches.values()] as [Touch, Touch];
-    return { dist: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+  private cancel() {
+    this.finger = null;
+    this.pair = null;
+    this.moves = [];
+    this.stopInertia();
   }
 
   private fling(t: number) {

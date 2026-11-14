@@ -51,74 +51,78 @@ describe('Viewport', () => {
   });
 });
 
-describe('Gestures', () => {
+describe('Gestures (D-042: fingers only scroll)', () => {
   const sink = () => {
-    const s: GestureSink & { log: string[]; total: number[] } = {
-      log: [],
+    const s: GestureSink & { total: number[] } = {
       total: [0, 0],
       pan(dx, dy) { s.total = [s.total[0]! + dx, s.total[1]! + dy]; },
-      pinch(f) { s.log.push(`pinch ${f.toFixed(2)}`); },
-      tap(n) { s.log.push(`tap ${n}`); },
     };
     return s;
   };
   const noRaf = () => 0;
+  const gestures = (s: GestureSink, twoFinger = false) => new Gestures(s, twoFinger, noRaf, () => {});
 
-  test('one finger pans', () => {
+  test('one finger scrolls', () => {
     const s = sink();
-    const g = new Gestures(s, noRaf, () => {});
+    const g = gestures(s);
     g.down(1, 100, 100, 0);
     g.move(1, 100, 60, 10);
     g.up(1, 400);
     expect(s.total).toEqual([0, -40]);
   });
 
-  test('two fingers pinch by their distance ratio', () => {
+  test('a second contact (a resting palm) stops scrolling until every finger lifts', () => {
     const s = sink();
-    const g = new Gestures(s, noRaf, () => {});
+    const g = gestures(s);
     g.down(1, 100, 100, 0);
-    g.down(2, 200, 100, 0);
-    g.move(2, 300, 100, 20);
-    expect(s.log).toContain('pinch 2.00');
+    g.move(1, 100, 80, 10);
+    expect(g.down(2, 300, 300, 20)).toBe(false);
+    g.move(1, 100, 0, 30); // ignored now
+    g.move(2, 300, 200, 30);
+    g.up(2, 40);
+    g.move(1, 100, -100, 50); // still ignored: the first finger hasn't lifted
+    g.up(1, 60);
+    expect(s.total).toEqual([0, -20]);
+    expect(g.down(3, 100, 100, 1000)).toBe(true); // all lifted: scrolling works again
   });
 
-  test('quick two- and three-finger taps are undo and redo', () => {
-    for (const fingers of [2, 3] as const) {
-      const s = sink();
-      const g = new Gestures(s, noRaf, () => {});
-      for (let i = 0; i < fingers; i++) g.down(i, 100 + i * 50, 100, 0);
-      for (let i = 0; i < fingers; i++) g.up(i, 120);
-      expect(s.log).toEqual([`tap ${fingers}`]);
-    }
-  });
-
-  test('a slow or travelling two-finger touch is not a tap', () => {
+  test('two or three fingers never zoom or undo; they do nothing', () => {
     const s = sink();
-    const g = new Gestures(s, noRaf, () => {});
-    g.down(1, 100, 100, 0);
-    g.down(2, 200, 100, 0);
-    g.up(1, 400);
-    g.up(2, 400);
-    expect(s.log.filter((l) => l.startsWith('tap'))).toEqual([]);
+    const g = gestures(s);
+    for (let i = 0; i < 3; i++) g.down(i, 100 + i * 50, 100, 0);
+    for (let i = 0; i < 3; i++) g.move(i, 100 + i * 80, 60, 10);
+    for (let i = 0; i < 3; i++) g.up(i, 120);
+    expect(s.total).toEqual([0, 0]);
   });
 
-  test('the pen cancels a pan and touches are ignored right after it lifts (palm guard)', () => {
+  test('palm-sized contacts are ignored', () => {
     const s = sink();
-    const g = new Gestures(s, noRaf, () => {});
+    const g = gestures(s);
+    expect(g.down(1, 100, 100, 0, 70)).toBe(false);
+    g.move(1, 100, 0, 10);
+    expect(s.total).toEqual([0, 0]);
+  });
+
+  test('the Pencil cancels a scroll, and touches just after it lifts are a resting palm', () => {
+    const s = sink();
+    const g = gestures(s);
     g.down(1, 100, 100, 0);
     g.penStart();
-    g.move(1, 100, 50, 10); // the palm keeps moving: no pan
+    g.move(1, 100, 50, 10); // the palm keeps moving: no scroll
+    g.up(1, 20);
     expect(s.total).toEqual([0, 0]);
-    expect(g.down(2, 100, 100, 20)).toBe(false); // pen still down
+    expect(g.down(2, 100, 100, 30)).toBe(false); // pen still down
+    g.up(2, 40);
     g.penEnd(1000);
     expect(g.down(3, 100, 100, 1200)).toBe(false); // within 500 ms
+    g.up(3, 1210);
     expect(g.down(4, 100, 100, 1600)).toBe(true);
   });
 
   test('a flick keeps scrolling with decaying speed', () => {
     const s = sink();
     const frames: ((t: number) => void)[] = [];
-    const g = new Gestures(s, (cb) => frames.push(cb), () => {});
+    const g = new Gestures(s, false, (cb) => frames.push(cb), () => {});
     g.down(1, 100, 500, 0);
     for (let i = 1; i <= 5; i++) g.move(1, 100, 500 - i * 20, i * 10);
     g.up(1, 50);
@@ -127,5 +131,15 @@ describe('Gestures', () => {
     while (frames.length && t < 5000) frames.shift()!((t += 16));
     expect(s.total[1]!).toBeLessThan(afterLift - 100); // carried on upward
     expect(frames.length).toBe(0); // and stopped
+  });
+
+  test('in finger-drawing mode, two fingers together scroll (and still never zoom)', () => {
+    const s = sink();
+    const g = gestures(s, true);
+    g.down(1, 100, 100, 0);
+    g.down(2, 200, 100, 0);
+    g.move(1, 100, 60, 10);
+    g.move(2, 200, 60, 10);
+    expect(s.total).toEqual([0, -40]);
   });
 });

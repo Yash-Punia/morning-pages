@@ -159,7 +159,7 @@ test.describe('writing surface', () => {
     expect(await inkAt(page, 260, 600, 2)).toBe(true);
   });
 
-  test('undo and redo: keyboard shortcuts and two-/three-finger taps restore exact state', async ({ page }) => {
+  test('undo and redo with the keyboard restore exact state; multi-finger taps do nothing (D-042)', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 1366 });
     await page.goto('/today');
     const ink = page.locator('[data-ink]');
@@ -177,13 +177,13 @@ test.describe('writing surface', () => {
     await expect(ink).toHaveAttribute('data-strokes', '2');
     expect(await inkAt(page, 350, 600, 2)).toBe(true);
 
+    // A resting palm used to read as a two-finger tap and undo the last stroke (owner feedback).
     await page.waitForTimeout(600); // past the palm guard
     await tap(page, 2);
-    await frame(page);
-    await expect(ink).toHaveAttribute('data-strokes', '1');
     await tap(page, 3);
     await frame(page);
     await expect(ink).toHaveAttribute('data-strokes', '2');
+    await expect(ink).toHaveAttribute('data-scroll-y', '0.0');
   });
 
   test('a hovering Pencil shows a ghost nib that leaves no ink (PEN-8)', async ({ page }) => {
@@ -251,13 +251,29 @@ test.describe('writing surface', () => {
     expect(Number(await ink.getAttribute('data-scroll-y'))).toBeGreaterThan(300);
   });
 
-  test('a trackpad pinch (ctrl + wheel) zooms', async ({ page }) => {
+  test('nothing zooms the page: a trackpad pinch (ctrl + wheel) is ignored (D-042)', async ({ page }) => {
     await page.goto('/today');
     await page.locator('[data-ink]').hover();
     await page.keyboard.down('Control');
     await page.mouse.wheel(0, -100);
     await page.keyboard.up('Control');
     await frame(page);
-    expect(Number(await page.locator('[data-ink]').getAttribute('data-zoom'))).toBeGreaterThan(1);
+    await expect(page.locator('[data-ink]')).toHaveAttribute('data-zoom', '1.000');
+  });
+
+  test('a palm resting on the glass does not scroll the page (D-042)', async ({ page }) => {
+    await page.goto('/today');
+    await frame(page);
+    const box = (await page.locator('[data-ink]').boundingBox())!;
+    await page.evaluate(({ box }) => {
+      const el = document.querySelector('[data-ink]')!;
+      const fire = (type: string, id: number, x: number, y: number, size: number) =>
+        el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: id, pointerType: 'touch', clientX: box.x + x, clientY: box.y + y, width: size, height: size, buttons: type === 'pointerup' ? 0 : 1 }));
+      fire('pointerdown', 41, 400, 500, 80); // a palm-sized contact
+      for (let i = 1; i <= 8; i++) fire('pointermove', 41, 400, 500 - i * 40, 80);
+      fire('pointerup', 41, 400, 180, 80);
+    }, { box });
+    await frame(page);
+    await expect(page.locator('[data-ink]')).toHaveAttribute('data-scroll-y', '0.0');
   });
 });

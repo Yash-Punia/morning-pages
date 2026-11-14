@@ -54,11 +54,9 @@ export class InkEngine {
     this.dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
     this.view.docHeight = this.doc.height;
     this.doc.onChange = (box, added) => this.changed(box, added);
-    this.gestures = new Gestures({
-      pan: (dx, dy) => { this.view.panBy(dx, dy); this.invalidate(true); },
-      pinch: (f, cx, cy, dx, dy) => { this.view.zoomAt(this.view.zoom * f, cx, cy); this.view.panBy(dx, dy); this.invalidate(true); },
-      tap: (fingers) => (fingers === 2 ? this.undo() : this.redo()), // TDD 5.3
-    });
+    // D-042: fingers only scroll (one finger, or two together in finger-drawing mode). No zoom,
+    // no tap-to-undo: a resting palm was being read as those gestures.
+    this.gestures = new Gestures({ pan: (dx, dy) => { this.view.panBy(dx, dy); this.invalidate(true); } }, this.fingerDraw);
 
     // PEN-2 / S1b: no selection loupe, callout, double-tap or pinch zoom from the browser.
     const prevent = (e: Event) => e.preventDefault();
@@ -117,14 +115,14 @@ export class InkEngine {
     else if (e.pointerType !== 'touch') return;
     else if (this.fingerDraw && !this.stroke && !this.erasing && !this.gestures.active) this.penDown(e, true);
     else if (this.stroke?.finger) {
-      // A second finger: the first one was starting a scroll or zoom, not writing. Drop the
-      // stroke and hand both fingers to the gestures (PEN-7: two fingers pan and zoom).
+      // A second finger: the first one was starting a two-finger scroll, not writing. Drop the
+      // stroke and hand both fingers to the scroll (finger-drawing mode only).
       const s = this.stroke;
       this.stroke = null;
       this.gestures.down(s.pointerId, ...this.local({ clientX: s.last[0], clientY: s.last[1] }), e.timeStamp);
       this.gestures.down(e.pointerId, ...this.local(e), e.timeStamp);
       this.invalidate();
-    } else this.gestures.down(e.pointerId, ...this.local(e), e.timeStamp);
+    } else this.gestures.down(e.pointerId, ...this.local(e), e.timeStamp, Math.max(e.width || 0, e.height || 0));
   }
 
   private onMove(e: PointerEvent) {
@@ -236,11 +234,11 @@ export class InkEngine {
     this.invalidate(true);
   }
 
-  /** Trackpads and mice: scroll, and ⌘/ctrl + scroll (or a trackpad pinch) to zoom. */
+  /** Trackpads and mice scroll. No zoom (D-042); a trackpad pinch is swallowed, not passed to Safari. */
   private onWheel(e: WheelEvent) {
     e.preventDefault();
-    if (e.ctrlKey || e.metaKey) this.view.zoomAt(this.view.zoom * Math.exp(-e.deltaY * 0.01), ...this.local(e));
-    else this.view.panBy(-e.deltaX, -e.deltaY);
+    if (e.ctrlKey || e.metaKey) return;
+    this.view.panBy(-e.deltaX, -e.deltaY);
     this.invalidate(true);
   }
 
