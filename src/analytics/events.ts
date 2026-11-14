@@ -5,6 +5,10 @@ export const SCHEMA = {
   app_open: { mode: ['standalone', 'browser'], morning: [true, false] },
   install_detected: {},
   launch_perf: { ms: ['<1000', '1000-1500', '1500-3000', '3000+'] },
+  // Durability in the wild (TDD 9.4): should stay at zero.
+  save_error: { kind: ['connection', 'quota', 'unknown'], recovered: [true, false] },
+  persist_status: { granted: [true, false] },
+  storage_warning: { pct: ['80', '95'] },
 } as const satisfies Record<string, Record<string, readonly (string | boolean)[]>>;
 
 export type EventName = keyof typeof SCHEMA;

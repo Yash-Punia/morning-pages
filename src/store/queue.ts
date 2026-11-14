@@ -3,6 +3,7 @@
 // Nothing leaves the queue until its transaction has completed, so a stroke shows as saved only
 // after IndexedDB says so (DUR-1), and nothing is ever dropped on an error.
 import { writable } from 'svelte/store';
+import { track } from '../analytics/track.ts';
 import { reopen } from './db.ts';
 
 /** saved: everything is on disk · saving: writes in flight · held: writes keep failing ·
@@ -39,7 +40,7 @@ export class WriteQueue {
     private opts: {
       /** Close and reopen the database (WebKit "connection lost" after backgrounding). */
       reopen?: () => void;
-      /** Each failure series, once: when it is held, and when it later succeeds. */
+      /** Once per failure series: recovered by a retry, or held (not saved after the retries). */
       onError?: (kind: ErrorKind, recovered: boolean) => void;
       sleep?: (ms: number) => Promise<void>;
     } = {},
@@ -100,10 +101,8 @@ export class WriteQueue {
     for (let n = 0; ; n++) {
       try {
         await job.run();
-        if (failed) {
-          this.opts.onError?.(failed, true);
-          this.state.set('saving');
-        }
+        if (failed && !held) this.opts.onError?.(failed, true); // fixed by a retry
+        if (held) this.state.set('saving');
         return;
       } catch (e) {
         failed = classify(e);
@@ -119,5 +118,5 @@ export class WriteQueue {
   }
 }
 
-/** The app's one queue (one per tab, TDD 6.1). */
-export const writes = new WriteQueue({ reopen });
+/** The app's one queue (one per tab, TDD 6.1). Errors are counted anonymously (TDD 9.4). */
+export const writes = new WriteQueue({ reopen, onError: (kind, recovered) => track('save_error', { kind, recovered }) });

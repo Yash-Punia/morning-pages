@@ -58,7 +58,7 @@ describe('write queue (TDD 6.1, 6.2)', () => {
     await q.push({ run: async () => { if (++calls < 7) throw fail('QuotaExceededError'); } });
     expect(states).toContain('full');
     expect(states.at(-1)).toBe('saved');
-    expect(errors).toEqual([['quota', false], ['quota', true]]);
+    expect(errors).toEqual([['quota', false]]); // one event per failure series
   });
 
   test('queued jobs with the same key coalesce; dropped jobs never run', async () => {

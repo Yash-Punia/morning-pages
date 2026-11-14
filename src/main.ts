@@ -21,7 +21,12 @@ startRouter().then(() => {
   if (isInstalled() && once('install')) track('install_detected');
   if (once('launch-perf-day', now.toDateString())) track('launch_perf', { ms: launchBucket(performance.now()) });
   route.subscribe((r) => r && pageView(r.template));
-  void checkStorage(); // STO-3: ask for persistent storage at every launch until granted
+  // STO-3: ask for persistent storage at every launch until granted. Reported anonymously when
+  // the answer changes, and when a quota threshold is first crossed (TDD 9.4).
+  void checkStorage().then(({ persisted, warn }) => {
+    if (persisted !== null && once('persist-status', String(persisted))) track('persist_status', { granted: persisted });
+    if (warn && once('storage-warning', String(warn))) track('storage_warning', { pct: warn === 95 ? '95' : '80' });
+  });
 });
 startServiceWorker();
 
