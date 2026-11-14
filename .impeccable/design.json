@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-13T20:47:56.461Z",
+  "generatedAt": "2026-11-14T20:30:05.629Z",
   "title": "Design System: Morning Pages",
   "extensions": {
     "colorMeta": {
@@ -247,6 +247,30 @@
       "description": "Today's date lettered in Fraunces with the weekday beneath.",
       "html": "<header class=\"ds-date\"><h1>November 14</h1><p>Saturday · 2026</p></header>",
       "css": ".ds-date h1{margin:0;font-family:var(--font-date);font-size:clamp(2.1rem,1.5rem + 2.2vw,3rem);font-weight:520;line-height:1.1;letter-spacing:-.025em;color:var(--ink)}.ds-date p{margin:.5rem 0 0;font-family:var(--font-ui);font-size:1.235rem;color:var(--ink-soft)}"
+    },
+    {
+      "name": "Tool pill",
+      "kind": "toolbar",
+      "refersTo": "tool-pill",
+      "description": "The writing tools, docked in a linen gutter beside the page: paper pill, float shadow, 44px round tools, current one in deep linen.",
+      "html": "<div class=\"ds-pill\" role=\"toolbar\" aria-label=\"Writing tools\"><button class=\"ds-tool\" aria-pressed=\"true\" aria-label=\"Ballpoint, Black\">●</button><button class=\"ds-tool\" aria-pressed=\"false\" aria-label=\"Fountain pen, Blue-black\">●</button><span class=\"ds-rule\"></span><button class=\"ds-tool\" aria-label=\"Undo\">↶</button></div>",
+      "css": ".ds-pill{display:inline-flex;flex-direction:column;gap:2px;padding:6px;border-radius:999px;background:var(--paper);box-shadow:var(--shadow-float)}.ds-tool{width:44px;height:44px;border:0;border-radius:50%;background:none;color:var(--ink)}.ds-tool[aria-pressed=true]{background:var(--linen-deep)}.ds-rule{width:24px;height:1px;margin:4px auto;background:var(--rule)}"
+    },
+    {
+      "name": "Saved dot",
+      "kind": "indicator",
+      "refersTo": "saved-dot",
+      "description": "Solid sage once every stroke is on disk; hollow only when a save is slow; terracotta ring when writes are held.",
+      "html": "<span class=\"ds-dot\" data-state=\"saved\" title=\"Saved on this iPad\"></span>",
+      "css": ".ds-dot{display:block;width:.5rem;height:.5rem;border-radius:50%;border:1.5px solid var(--sage);background:var(--sage)}.ds-dot[data-state=saving]{background:transparent}.ds-dot[data-state=held]{background:transparent;border-color:var(--accent-ink)}"
+    },
+    {
+      "name": "Held-writes banner",
+      "kind": "banner",
+      "refersTo": "banner-held",
+      "description": "The only banner allowed over the page: writes are held in memory; offers Save a copy.",
+      "html": "<div class=\"ds-held\"><p>Your latest writing isn’t saved yet. Still trying. Keep this page open.</p><button>Save a copy</button></div>",
+      "css": ".ds-held{display:flex;align-items:center;gap:1rem;padding:.75rem .75rem .75rem 1.5rem;border-radius:10px;background:var(--paper);box-shadow:var(--shadow-float);color:var(--ink);font-size:.882rem}.ds-held p{margin:0}.ds-held button{min-height:44px;padding:0 1rem;border:0;border-radius:999px;background:var(--accent-ink);color:var(--paper);font-weight:600}"
     }
   ],
   "narrative": {
