@@ -5,6 +5,7 @@
   import Icon from './Icon.svelte';
   import { commands, history, SIZES, sizeName, tools, type Dock, type Preset } from '../ink/tools.ts';
   import { INK_NAMES, PALETTE } from '../ink/inks.ts';
+  import { nibSwatchPath } from '../ink/stroke.ts';
   import type { InkId, ToolId } from '../ink/types.ts';
 
   let editing = $state(false);
@@ -150,8 +151,12 @@
 
 {#snippet swatch(p: Preset)}
   <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
-    <!-- style:, not the stroke attribute: presentation attributes don't resolve var() -->
-    <path d="M4 15.5c2.6-5.2 4.6-5.2 7.2-1.2s4.6 4 8.8-2.8" fill="none" style:stroke={css(p.color)} stroke-width={swatchWidth(p.size)} stroke-linecap="round" />
+    <!-- style:, not presentation attributes: those don't resolve var() -->
+    {#if p.tool === 'fountain'}
+      <path d={nibSwatchPath(p.size)} style:fill={css(p.color)} />
+    {:else}
+      <path d="M4 15.5c2.6-5.2 4.6-5.2 7.2-1.2s4.6 4 8.8-2.8" fill="none" style:stroke={css(p.color)} stroke-width={swatchWidth(p.size)} stroke-linecap="round" />
+    {/if}
   </svg>
 {/snippet}
 

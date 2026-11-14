@@ -19,8 +19,8 @@ export const SIZES = { min: 1.5, max: 12, step: 0.5 };
 
 const DEFAULTS: ToolState = {
   presets: [
+    { tool: 'ballpoint', color: 'black', size: 2.8 }, // the owner's everyday pen: first, and selected
     { tool: 'fountain', color: 'blueBlack', size: 5 },
-    { tool: 'ballpoint', color: 'black', size: 2.8 },
     { tool: 'fountain', color: 'sepia', size: 5 },
     { tool: 'ballpoint', color: 'crimson', size: 2.8 },
   ],
@@ -31,7 +31,9 @@ const DEFAULTS: ToolState = {
   customs: [null, null, null],
 };
 
-const KEY = 'mp.ink.tools';
+// v2: ballpoint became the first preset (owner feedback). A new key lets the new defaults reach
+// devices that saved the old order.
+const KEY = 'mp.ink.tools.v2';
 
 function load(): ToolState {
   try {

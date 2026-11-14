@@ -10,7 +10,7 @@ const engine = (page: Page) => page.evaluate(() => {
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 1024 });
   await page.goto('/today');
-  await page.evaluate(() => localStorage.removeItem('mp.ink.tools'));
+  await page.evaluate(() => localStorage.removeItem('mp.ink.tools.v2'));
   await page.reload();
   await frame(page);
 });
@@ -24,11 +24,19 @@ test('docks left for a right-handed writer, in its own gutter: it never covers t
   expect(hitsCanvas).toBe(false);
 });
 
-test('presets switch the pen; tapping the active one opens its editor', async ({ page }) => {
-  await toolbar(page).getByRole('button', { name: /^Ballpoint, Black/ }).click();
+test('the ballpoint is the first preset and selected by default (owner feedback)', async ({ page }) => {
+  const presets = toolbar(page).getByRole('button', { name: /^(Ballpoint|Fountain pen),/ });
+  await expect(presets.first()).toHaveAccessibleName(/^Ballpoint, Black/);
+  await expect(presets.first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(presets.nth(1)).toHaveAccessibleName(/^Fountain pen, Blue-black/);
   expect((await engine(page)).preset).toMatchObject({ tool: 'ballpoint', color: 'black' });
+});
 
-  await toolbar(page).getByRole('button', { name: /^Ballpoint, Black/ }).click(); // again → edit
+test('presets switch the pen; tapping the active one opens its editor', async ({ page }) => {
+  await toolbar(page).getByRole('button', { name: /^Fountain pen, Blue-black/ }).click();
+  expect((await engine(page)).preset).toMatchObject({ tool: 'fountain', color: 'blueBlack' });
+
+  await toolbar(page).getByRole('button', { name: /^Fountain pen, Blue-black/ }).click(); // again → edit
   const editor = page.getByRole('dialog', { name: 'Edit pen' });
   await expect(editor).toBeVisible();
   await editor.getByRole('radio', { name: 'Forest' }).check();
@@ -84,7 +92,7 @@ test('moves between left, top and right, and folds to a dot; the page reflows ea
 
 test('starts folded on a phone-width window', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
-  await page.evaluate(() => localStorage.removeItem('mp.ink.tools'));
+  await page.evaluate(() => localStorage.removeItem('mp.ink.tools.v2'));
   await page.reload();
   await expect(page.getByRole('button', { name: 'Show writing tools' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);

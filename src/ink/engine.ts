@@ -12,7 +12,7 @@ import { inkMetrics } from './metrics.ts';
 import { InkDoc } from './page.ts';
 import { commands, history, tools, type Preset } from './tools.ts';
 import { overlaps, TileCache, tileBox, tileRes, tileUnits, type Ctx2D, type Tile } from './renderer.ts';
-import { outline, outlinePath } from './stroke.ts';
+import { NIB_ANGLE, strokePath } from './stroke.ts';
 import { A5_HEIGHT, PAGE_WIDTH, type Box, type Pt, type StrokeOp } from './types.ts';
 import { Viewport } from './viewport.ts';
 
@@ -331,7 +331,7 @@ export class InkEngine {
   private paths = new WeakMap<StrokeOp, Path2D>();
   private pathOf(op: StrokeOp): Path2D {
     let p = this.paths.get(op);
-    if (!p) this.paths.set(op, (p = outlinePath(outline(op.pts, op.tool, op.size, this.smoothing, true))));
+    if (!p) this.paths.set(op, (p = strokePath(op.pts, op.tool, op.size, this.smoothing, true)));
     return p;
   }
 
@@ -351,19 +351,30 @@ export class InkEngine {
       ctx.arc(ring[0], ring[1], ERASER_RADIUS / Math.min(1, this.view.zoom), 0, Math.PI * 2);
       ctx.stroke();
     } else if (this.hover) {
-      // PEN-8: a ghost of the nib in the preset's ink and size, before it touches the glass.
-      ctx.globalAlpha = 0.4;
-      ctx.fillStyle = inkColor(this.preset.color);
+      // PEN-8: a ghost of the nib in the preset's ink and size, before it touches the glass:
+      // the fountain pen's slanted italic edge, or the ballpoint's round tip.
+      const [x, y] = this.hover;
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = ctx.strokeStyle = inkColor(this.preset.color);
       ctx.beginPath();
-      ctx.arc(this.hover[0], this.hover[1], Math.max(1.5, this.preset.size * 0.55), 0, Math.PI * 2);
-      ctx.fill();
+      if (this.preset.tool === 'fountain') {
+        const h = this.preset.size * 0.44, dx = Math.cos(NIB_ANGLE) * h, dy = -Math.sin(NIB_ANGLE) * h;
+        ctx.lineWidth = Math.max(1, this.preset.size * 0.25);
+        ctx.lineCap = 'round';
+        ctx.moveTo(x - dx, y - dy);
+        ctx.lineTo(x + dx, y + dy);
+        ctx.stroke();
+      } else {
+        ctx.arc(x, y, Math.max(1.5, this.preset.size * 0.55), 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.globalAlpha = 1;
     }
     const s = this.stroke;
     if (!s) return;
     ctx.fillStyle = inkColor(this.preset.color);
     const { tool, size } = this.preset;
-    ctx.fill(outlinePath(outline(s.pred.length ? s.pts.concat(s.pred) : s.pts, tool, size, this.smoothing, false)));
+    ctx.fill(strokePath(s.pred.length ? s.pts.concat(s.pred) : s.pts, tool, size, this.smoothing, false));
     inkMetrics.drawn();
   }
 

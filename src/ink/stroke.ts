@@ -47,14 +47,85 @@ export function smooth(raw: Pt[], cfg: Smoothing, final: boolean): Pt[] {
 }
 
 // Input is pre-filtered, so perfect-freehand's own streamline stays low (S1 round 2).
+// The fountain pen draws with the italic nib below; this round outline is only its fallback.
 const TOOLS: Record<ToolId, (size: number) => StrokeOptions> = {
-  fountain: (size) => ({ size, thinning: 0.5, smoothing: 0.6, streamline: 0.15, simulatePressure: false, start: { taper: size * 1.2 }, end: { taper: size * 2 } }),
+  fountain: (size) => ({ size, thinning: 0.5, smoothing: 0.6, streamline: 0.15, simulatePressure: false }),
   ballpoint: (size) => ({ size, thinning: 0.1, smoothing: 0.6, streamline: 0.15, simulatePressure: false }),
 };
 
-/** The stroke's outline polygon, in the same space as its points. */
+/**
+ * The stroke's outline polygon, in the same space as its points (used for hit-testing). For the
+ * italic fountain nib it is the sweep's boundary: one nib end forward, the other back.
+ */
 export function outline(pts: Pt[], tool: ToolId, size: number, level: SmoothingLevel, complete: boolean): number[][] {
-  return getStroke(smooth(pts, SMOOTHING[level], complete), { ...TOOLS[tool](size), last: complete });
+  const sm = smooth(pts, SMOOTHING[level], complete);
+  if (tool === 'fountain') {
+    const { left, right } = nibEdges(sm, size);
+    return [...left, ...right.reverse()];
+  }
+  return getStroke(sm, { ...TOOLS[tool](size), last: complete });
+}
+
+// The fountain pen has a broad italic nib (owner feedback, D-043): a flat edge held at a fixed
+// 30° slant. The mark is the area the edge sweeps, so it is thick on downstrokes and a fine
+// hairline when the pen moves along the edge, like a calligraphy pen. Pressure widens it a little.
+export const NIB_ANGLE = (30 * Math.PI) / 180;
+const NIB = { x: Math.cos(NIB_ANGLE), y: -Math.sin(NIB_ANGLE) }; // up and to the right (y is down)
+
+/** Half the nib's length for a sample: size 5 is a ~0.65 mm italic, fine enough for everyday handwriting. */
+const nibHalf = (size: number, p: number) => size * 0.44 * (0.7 + 0.6 * p);
+
+/** The two ends of the nib edge at each smoothed sample. */
+export function nibEdges(pts: Pt[], size: number): { left: number[][]; right: number[][] } {
+  const left: number[][] = [], right: number[][] = [];
+  for (const [x, y, p] of pts) {
+    const h = nibHalf(size, p);
+    left.push([x + NIB.x * h, y + NIB.y * h]);
+    right.push([x - NIB.x * h, y - NIB.y * h]);
+  }
+  return { left, right };
+}
+
+/**
+ * The stroke as a fillable path. Fountain: the italic nib's sweep, one quad per segment, all wound
+ * the same way so the nonzero fill unions them, plus a fine hairline so strokes along the nib's
+ * edge never vanish. Ballpoint: the perfect-freehand outline.
+ */
+export function strokePath(pts: Pt[], tool: ToolId, size: number, level: SmoothingLevel, complete: boolean): Path2D {
+  if (tool !== 'fountain') return outlinePath(outline(pts, tool, size, level, complete));
+  const sm = smooth(pts, SMOOTHING[level], complete);
+  const path = new Path2D();
+  const { left: L, right: R } = nibEdges(sm, size);
+  for (let i = 0; i + 1 < sm.length; i++) quad(path, L[i]!, L[i + 1]!, R[i + 1]!, R[i]!);
+  if (sm.length === 1) quad(path, L[0]!, L[0]!, R[0]!, R[0]!);
+  path.addPath(outlinePath(getStroke(sm, { size: Math.max(0.9, size * 0.18), thinning: 0, smoothing: 0.6, streamline: 0, simulatePressure: false, last: complete })));
+  return path;
+}
+
+function quad(path: Path2D, a: number[], b: number[], c: number[], d: number[]) {
+  // Shoelace sign: keep every quad clockwise so overlapping quads add up instead of cancelling.
+  const area = (b[0]! - a[0]!) * (b[1]! + a[1]!) + (c[0]! - b[0]!) * (c[1]! + b[1]!) + (d[0]! - c[0]!) * (d[1]! + c[1]!) + (a[0]! - d[0]!) * (a[1]! + d[1]!);
+  const pts = area < 0 ? [a, b, c, d] : [a, d, c, b];
+  path.moveTo(pts[0]![0]!, pts[0]![1]!);
+  for (let i = 1; i < 4; i++) path.lineTo(pts[i]![0]!, pts[i]![1]!);
+  path.closePath();
+}
+
+/** SVG path data for the toolbar's fountain swatch: a wave drawn with the italic nib (24-unit box). */
+export function nibSwatchPath(size: number): string {
+  const pts: Pt[] = [];
+  for (let x = 4; x <= 20.01; x += 0.5) pts.push([x, 12.5 - 3.6 * Math.sin(((x - 4) / 16) * 2 * Math.PI), 0.5, 1, 0, 0]);
+  const { left: L, right: R } = nibEdges(pts, Math.min(3.2, Math.max(1.4, size * 0.45)));
+  const f = (p: number[]) => `${p[0]!.toFixed(2)} ${p[1]!.toFixed(2)}`;
+  let d = '';
+  for (let i = 0; i + 1 < pts.length; i++) {
+    // Same winding for every quad, so the nonzero fill unions them.
+    const q = [L[i]!, L[i + 1]!, R[i + 1]!, R[i]!];
+    const area = q.reduce((s, a, k) => { const b = q[(k + 1) % 4]!; return s + (b[0]! - a[0]!) * (b[1]! + a[1]!); }, 0);
+    const o = area < 0 ? q : [q[0]!, q[3]!, q[2]!, q[1]!];
+    d += `M${f(o[0]!)}L${f(o[1]!)}L${f(o[2]!)}L${f(o[3]!)}Z`;
+  }
+  return d;
 }
 
 /** Quadratic curves through edge midpoints: smooth edges instead of polygon facets. */
