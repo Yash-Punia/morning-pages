@@ -5,6 +5,7 @@ import { inkPaper, inkSmoothing } from '../settings.ts';
 import { drawPaper } from './paper.ts';
 import { resolveToken, watchTheme } from './colors.ts';
 import { Gestures } from './gestures.ts';
+import { hits } from './hit.ts';
 import { inkColor } from './inks.ts';
 import { appendSamples, coalesced, predicted, toPt } from './input.ts';
 import { inkMetrics } from './metrics.ts';
@@ -15,7 +16,10 @@ import { A5_HEIGHT, PAGE_WIDTH, type Box, type InkId, type Pt, type StrokeOp, ty
 import { Viewport } from './viewport.ts';
 
 interface Live { pointerId: number; pts: Pt[]; pred: Pt[] }
+interface Erasing { pointerId: number; ids: Set<string>; at: [number, number] }
 export interface Preset { tool: ToolId; color: InkId; size: number }
+export type Mode = 'pen' | 'eraser';
+const ERASER_RADIUS = 10; // page units
 
 export class InkEngine {
   readonly view = new Viewport();
@@ -32,6 +36,9 @@ export class InkEngine {
   private origin = { x: 0, y: 0 };
   private dpr = 1;
   private stroke: Live | null = null;
+  private erasing: Erasing | null = null;
+  /** What the Pencil does: write with the preset, or erase whole strokes (TDD 5.6). */
+  mode: Mode = 'pen';
   private smoothing = inkSmoothing.get();
 
   constructor(
@@ -103,7 +110,9 @@ export class InkEngine {
 
   private onMove(e: PointerEvent) {
     if (e.pointerType === 'touch') this.gestures.move(e.pointerId, ...this.local(e), e.timeStamp);
-    else if (e.pointerType === 'pen' && this.stroke && e.pointerId === this.stroke.pointerId) {
+    else if (e.pointerType === 'pen' && this.erasing && e.pointerId === this.erasing.pointerId) {
+      for (const c of coalesced(e)) this.eraseAt(this.toDoc(c.clientX, c.clientY));
+    } else if (e.pointerType === 'pen' && this.stroke && e.pointerId === this.stroke.pointerId) {
       // Compare the parent event's id only: Safari 18.2 coalesced events carry wrong ids (TDD 15).
       const s = this.stroke;
       appendSamples(s.pts, coalesced(e).map((c) => toPt(c, this.toDoc)));
@@ -120,6 +129,11 @@ export class InkEngine {
   private penDown(e: PointerEvent) {
     this.gestures.penStart();
     try { this.host.setPointerCapture(e.pointerId); } catch { /* synthetic or already-released pointers */ }
+    if (this.mode === 'eraser') {
+      this.erasing = { pointerId: e.pointerId, ids: new Set(), at: this.toDoc(e.clientX, e.clientY) };
+      this.eraseAt(this.erasing.at);
+      return;
+    }
     this.stroke = { pointerId: e.pointerId, pts: [toPt(e, this.toDoc, true)], pred: [] };
     inkMetrics.penDown(e.timeStamp);
     this.invalidate();
@@ -127,6 +141,14 @@ export class InkEngine {
 
   /** pointerup, pointercancel and lost capture all end the stroke, and all keep it (TDD 4.5). */
   private penUp(e: PointerEvent) {
+    const er = this.erasing;
+    if (er && e.pointerId === er.pointerId) {
+      this.erasing = null;
+      this.doc.erase([...er.ids]); // one erase op per gesture (per page touched)
+      this.gestures.penEnd(e.timeStamp);
+      this.invalidate(true);
+      return;
+    }
     const s = this.stroke;
     if (!s || e.pointerId !== s.pointerId) return;
     // The pointerup sample is the lift-off (~4 px jump, pressure 0): never recorded (D-036).
@@ -135,6 +157,18 @@ export class InkEngine {
     this.gestures.penEnd(e.timeStamp);
     inkMetrics.penUp();
     this.invalidate();
+  }
+
+  /** Strokes under the eraser disappear at once; the erase op is written at pen-up. */
+  private eraseAt(at: [number, number]) {
+    const er = this.erasing!;
+    er.at = at;
+    for (const op of this.doc.hitTest(at[0], at[1], ERASER_RADIUS / Math.min(1, this.view.zoom), hits)) {
+      if (er.ids.has(op.id)) continue;
+      er.ids.add(op.id);
+      for (const t of [...this.tiles.overlapping(this.doc.docBox(op))]) this.tiles.remove(t);
+    }
+    this.invalidate(true);
   }
 
   /** Trackpads and mice: scroll, and ⌘/ctrl + scroll (or a trackpad pinch) to zoom. */
@@ -212,7 +246,8 @@ export class InkEngine {
       const top = this.doc.pageTop(page);
       if (overlaps(box, [0, top, PAGE_WIDTH, top + A5_HEIGHT])) drawPaper(ctx, page.paper, top, colors, { date: this.dateLabel, page: page.index + 1 });
     }
-    for (const op of this.doc.strokes()) if (overlaps(box, this.doc.docBox(op))) this.paintStroke(ctx, op);
+    const erasing = this.erasing?.ids;
+    for (const op of this.doc.strokes()) if (!erasing?.has(op.id) && overlaps(box, this.doc.docBox(op))) this.paintStroke(ctx, op);
   }
 
   private paintStroke(ctx: Ctx2D, op: StrokeOp) {
@@ -236,11 +271,20 @@ export class InkEngine {
     const ctx = this.live.getContext('2d')!;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.live.width, this.live.height);
-    const s = this.stroke;
-    if (!s) return;
     const { scale, sx, sy } = this.view;
     const k = scale * this.dpr;
     ctx.setTransform(k, 0, 0, k, -sx * k, -sy * k);
+    if (this.erasing) {
+      // The eraser's reach, as a quiet ring under the nib.
+      const [x, y] = this.erasing.at;
+      ctx.strokeStyle = resolveToken('--ink-soft');
+      ctx.lineWidth = 1.5 / scale;
+      ctx.beginPath();
+      ctx.arc(x, y, ERASER_RADIUS / Math.min(1, this.view.zoom), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    const s = this.stroke;
+    if (!s) return;
     ctx.fillStyle = inkColor(this.preset.color);
     const { tool, size } = this.preset;
     ctx.fill(outlinePath(outline(s.pred.length ? s.pts.concat(s.pred) : s.pts, tool, size, this.smoothing, false)));

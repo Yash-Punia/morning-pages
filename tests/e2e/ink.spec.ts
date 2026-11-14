@@ -142,6 +142,23 @@ test.describe('writing surface', () => {
     await expect(page.getByText('Practice page · not saved yet')).toBeVisible();
   });
 
+  test('the stroke eraser removes whole strokes it touches, and only those (TDD 5.6)', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 1366 });
+    await page.goto('/today');
+    const ink = page.locator('[data-ink]');
+    await frame(page);
+    await drag(page, 'pen', { x: 200, y: 500 }, { x: 500, y: 500 });
+    await drag(page, 'pen', { x: 200, y: 600 }, { x: 500, y: 600 });
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-strokes', '2');
+    await page.evaluate(() => { (window as unknown as { __ink: { mode: string } }).__ink.mode = 'eraser'; });
+    await drag(page, 'pen', { x: 350, y: 460 }, { x: 350, y: 530 }); // crosses only the first line
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-strokes', '1');
+    expect(await inkAt(page, 260, 500, 2)).toBe(false); // the whole stroke went, not just where it was touched
+    expect(await inkAt(page, 260, 600, 2)).toBe(true);
+  });
+
   test('one finger scrolls the page (D-007)', async ({ page }) => {
     await page.goto('/today');
     const ink = page.locator('[data-ink]');

@@ -17,11 +17,17 @@ export function fold(ops: Op[]): Map<string, StrokeOp> {
   return all;
 }
 
+/** One user action, for undo: strokes added, or strokes erased by one eraser gesture. */
+type Step = { kind: 'stroke' | 'erase'; ids: string[] };
+
 export class InkDoc {
   readonly pages: Page[] = [];
   readonly ops: Op[] = [];
   private seq = new Map<string, number>();
   private visible = new Map<string, StrokeOp>();
+  private all = new Map<string, StrokeOp>(); // every stroke ever written, visible or not
+  private undoStack: Step[] = []; // unlimited, per session (TDD 5.6)
+  private redoStack: Step[] = [];
   /** Called with the document-space area that changed, and the stroke when one was added. */
   onChange: (box: Box, added?: StrokeOp) => void = () => {};
 
@@ -62,7 +68,10 @@ export class InkDoc {
     const pts = docPts.map((p): Pt => [p[0], p[1] - top, p[2], p[3], p[4], p[5]]);
     const op: StrokeOp = { kind: 'stroke', id: crypto.randomUUID(), pageId: page.id, seq: this.nextSeq(page.id), createdAt: Date.now(), tool, color, size, pts, bbox: pointsBox(pts, size) };
     this.ops.push(op);
+    this.all.set(op.id, op);
     this.visible.set(op.id, op);
+    this.undoStack.push({ kind: 'stroke', ids: [op.id] });
+    this.redoStack.length = 0;
     this.onChange(this.docBox(op), op);
     // Continuous scroll (PRD 4.4): writing on the last page puts a fresh page below it.
     if (page.index === this.pages.length - 1) {
@@ -71,6 +80,60 @@ export class InkDoc {
       this.onChange([0, nextTop - PAGE_GAP, PAGE_WIDTH, nextTop + next.height]);
     }
     return op;
+  }
+
+  /** The eraser: one gesture hides `ids` with one erase op per page touched (TDD 5.6). */
+  erase(ids: string[]) {
+    const live = ids.filter((id) => this.visible.has(id));
+    if (!live.length) return;
+    this.apply('erase', live);
+    this.undoStack.push({ kind: 'erase', ids: live });
+    this.redoStack.length = 0;
+  }
+
+  get canUndo() { return this.undoStack.length > 0; }
+  get canRedo() { return this.redoStack.length > 0; }
+
+  /** Undo appends ops; nothing is ever deleted (DUR-2). */
+  undo() {
+    const step = this.undoStack.pop();
+    if (!step) return;
+    this.apply(step.kind === 'stroke' ? 'erase' : 'restore', step.ids);
+    this.redoStack.push(step);
+  }
+
+  redo() {
+    const step = this.redoStack.pop();
+    if (!step) return;
+    this.apply(step.kind === 'stroke' ? 'restore' : 'erase', step.ids);
+    this.undoStack.push(step);
+  }
+
+  /** Strokes whose outline is within `r` of document point (x, y). */
+  hitTest(x: number, y: number, r: number, hits: (op: StrokeOp, x: number, y: number, r: number) => boolean): StrokeOp[] {
+    const out: StrokeOp[] = [];
+    for (const op of this.visible.values()) {
+      const top = this.pageTop(this.page(op.pageId));
+      if (hits(op, x, y - top, r)) out.push(op);
+    }
+    return out;
+  }
+
+  private apply(kind: 'erase' | 'restore', ids: string[]) {
+    const byPage = new Map<string, string[]>();
+    for (const id of ids) {
+      const op = this.all.get(id);
+      if (op) byPage.set(op.pageId, [...(byPage.get(op.pageId) ?? []), id]);
+    }
+    for (const [pageId, targets] of byPage) {
+      this.ops.push({ kind, id: crypto.randomUUID(), pageId, seq: this.nextSeq(pageId), createdAt: Date.now(), targets });
+      for (const id of targets) {
+        const op = this.all.get(id)!;
+        if (kind === 'erase') this.visible.delete(id);
+        else this.visible.set(id, op);
+        this.onChange(this.docBox(op));
+      }
+    }
   }
 
   strokes(): Iterable<StrokeOp> {
