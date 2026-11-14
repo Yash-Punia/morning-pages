@@ -27,7 +27,8 @@
       <ul>
         {#each rows as entry (entry.id)}
           <li>
-            <a href={entry.entryDate === today ? '/today' : `/entry/${entry.id}`}>
+            <!-- Today's newest entry is Today; an earlier one from this morning opens by id (ENT-2). -->
+            <a href={entry.id === rows.find((r) => r.entryDate === today)?.id ? '/today' : `/entry/${entry.id}`}>
               <span class="text">
                 <span class="title" class:untitled={!entry.title}>{entry.title || 'Untitled'}</span>
                 <span class="meta">{longDate(entry.entryDate)} · {entry.pages} {entry.pages === 1 ? 'page' : 'pages'}</span>

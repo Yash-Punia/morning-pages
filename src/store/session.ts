@@ -11,6 +11,8 @@ import { db, DB_VERSION, dbName, DEFAULT_JOURNAL, type PageRef, type RecoveryRec
 import { noBackupYet, prepareOpen } from './migrate.ts';
 import { commitOp, commitPaper, commitTitle, entryOn, readEntry } from './entries.ts';
 import { writes } from './queue.ts';
+import { writable } from 'svelte/store';
+import { track } from '../analytics/track.ts';
 
 const TITLE_DEBOUNCE_MS = 500;
 
@@ -25,14 +27,29 @@ export const fromLocalDate = (s: string) => {
 let today: InkDoc | undefined;
 const opened = new Map<string, InkDoc>();
 
+/** Changes when "+ New entry" replaces today's entry, so the Today screen reopens. */
+export const todayKey = writable(0);
+
+const fresh = (day: string) =>
+  attach(new InkDoc(inkPaper.get(), { id: crypto.randomUUID(), journalId: DEFAULT_JOURNAL, entryDate: day, createdAt: Date.now() }), false);
+
+/**
+ * ENT-2: a new entry for today. Like any entry it is stored only with its first stroke or title
+ * (D-046), so a "+" left blank leaves nothing behind. The one it replaces stays open in memory.
+ */
+export function newToday(date: Date) {
+  if (today) opened.set(today.entry.id, today);
+  today = fresh(localDate(date));
+  todayKey.update((n) => n + 1);
+}
+
 /** Today's entry: the saved one if there is one, else a fresh page that is stored on first write. */
 export async function openToday(date: Date): Promise<InkDoc> {
   await ready();
   const day = localDate(date);
   if (today?.entry.entryDate !== day) {
     const found = await entryOn(db(), day);
-    today = (found && (await load(found.id)))
-      ?? attach(new InkDoc(inkPaper.get(), { id: crypto.randomUUID(), journalId: DEFAULT_JOURNAL, entryDate: day, createdAt: Date.now() }));
+    today = (found && (await load(found.id))) ?? fresh(day);
   }
   today.setPaper(inkPaper.get()); // the Settings choice applies to today's pages (PRD 4.4)
   return today;
@@ -57,9 +74,16 @@ async function load(id: string): Promise<InkDoc | undefined> {
 let titleTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingTitle: (() => void) | undefined;
 
-function attach(doc: InkDoc): InkDoc {
+function attach(doc: InkDoc, stored = true): InkDoc {
   const entryCtx = (): WriteCtx => ({ entry: doc.entry });
+  // entry_started (TDD 9.4): the first stroke or keystroke of an entry that wasn't stored yet.
+  const started = (input: 'pen' | 'finger' | 'keyboard') => {
+    if (stored) return;
+    stored = true;
+    track('entry_started', { template: 'none', input });
+  };
   doc.onOp = (op, page) => {
+    started(doc.input);
     const ctx = { entry: doc.entry, page: pageRef(page) };
     const rec = toRecord(op);
     writes.drop(`rec:${op.id}`); // its recovery mirror is no longer needed (TDD 6.3)
@@ -69,7 +93,8 @@ function attach(doc: InkDoc): InkDoc {
     const rec: RecoveryRec = { id: d.id, ctx: { entry: doc.entry, page: pageRef(d.page) }, title: doc.title, tool: d.tool, color: d.color, size: d.size, pts: d.pts, at: Date.now() };
     void writes.push({ key: `rec:${d.id}`, run: () => db().recovery.put(rec) });
   };
-  doc.onTitle = () => {
+  doc.onTitle = (title) => {
+    if (title) started('keyboard');
     clearTimeout(titleTimer);
     pendingTitle = () => {
       pendingTitle = undefined;

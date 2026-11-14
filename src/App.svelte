@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { route } from './router.ts';
+  import { navigate, route } from './router.ts';
+  import { newToday } from './store/session.ts';
   import Icon, { type IconName } from './ui/Icon.svelte';
   import TrialStrip from './ui/TrialStrip.svelte';
   import { isInstalled } from './pwa/standalone.ts';
@@ -16,9 +17,24 @@
   const trial = !isInstalled(); // STO-1: a Safari tab, not the Home Screen app
   let open = $state(false);
   const isCurrent = (href: string) => !!$route && (UNDER[$route.template] ?? $route.template) === href;
+
+  // ENT-2: another entry for this morning; Today opens it.
+  function newEntry() {
+    newToday(new Date());
+    void navigate('/today');
+  }
+  // ⌘N with a hardware keyboard (PRD 10.2), never while typing in a field.
+  function onKey(e: KeyboardEvent) {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'n') return;
+    if ((e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable]')) return;
+    if (!$route || BARE.includes($route.template)) return;
+    e.preventDefault();
+    newEntry();
+  }
 </script>
 
 {#if trial && $route && !BARE.includes($route.template)}<TrialStrip />{/if}
+<svelte:window onkeydown={onKey} />
 <div class="app" class:open>
   {#if $route && !BARE.includes($route.template)}
     <nav class="spine" aria-label="Main">
@@ -37,6 +53,15 @@
               <span class="label">{item.label}</span>
             </a>
           </li>
+          {#if item.href === '/today'}
+            <!-- ENT-2, owner decision: "+ New entry" sits right under Today. -->
+            <li>
+              <button class="new" type="button" title={open ? undefined : 'New entry'} onclick={newEntry}>
+                <Icon name="plus" />
+                <span class="label">New entry</span>
+              </button>
+            </li>
+          {/if}
         {/each}
       </ul>
       <button class="toggle" type="button" aria-expanded={open} aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'} onclick={() => (open = !open)}>
@@ -98,6 +123,7 @@
   }
 
   a,
+  .new,
   .toggle {
     display: flex;
     align-items: center;
@@ -114,6 +140,7 @@
       color var(--dur-quick) var(--ease-out);
   }
   a:hover,
+  .new:hover,
   .toggle:hover {
     color: var(--ink);
     background: color-mix(in oklch, var(--linen-deep) 60%, transparent);
@@ -152,8 +179,13 @@
 
   .toggle {
     margin-top: auto;
+  }
+  .new,
+  .toggle {
+    width: 100%;
     border: 0;
     background: none;
+    font: inherit;
     cursor: pointer;
   }
 
@@ -206,12 +238,16 @@
       flex-direction: row;
       justify-content: space-around;
     }
-    a {
+    a,
+    .new {
       flex-direction: column;
       justify-content: center;
       gap: 2px;
-      padding: var(--space-1) var(--space-3);
+      padding: var(--space-1) var(--space-2);
       font-size: var(--text-xs);
+    }
+    .new .label {
+      white-space: nowrap;
     }
     .app:not(.open) .label {
       position: static;

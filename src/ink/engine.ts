@@ -184,6 +184,7 @@ export class InkEngine {
 
   private penDown(e: PointerEvent, finger = false) {
     this.hover = null;
+    this.doc.input = finger ? 'finger' : 'pen';
     if (!finger) {
       this.gestures.penStart(e.timeStamp); // the Pencil cancels any pan; a drawing finger is the pan
       this.gestures.penAt(...this.local(e), e.timeStamp);
