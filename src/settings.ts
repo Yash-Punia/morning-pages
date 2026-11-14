@@ -1,6 +1,7 @@
 // Interim settings shim until the Dexie kv store lands (M3.1), which migrates these keys.
 // Only non-journal preferences live here; DUR-8 keeps every important record out of localStorage.
 import type { SmoothingLevel } from './ink/stroke.ts';
+import type { PaperStyle } from './ink/types.ts';
 
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode: keep default */ } };
@@ -27,3 +28,10 @@ function choice<T extends string>(key: string, values: readonly T[], fallback: T
 
 /** Ink smoothing (D-036): higher is smoother but trails the pen slightly more. */
 export const inkSmoothing = choice<SmoothingLevel>('mp.ink.smoothing', ['low', 'medium', 'high'], 'medium');
+
+/** Paper for new pages (PRD 4.4); the owner's default is lined, college. */
+export const inkPaper = choice<PaperStyle>(
+  'mp.ink.paper',
+  ['blank', 'lined-narrow', 'lined-college', 'lined-wide', 'dotted', 'grid', 'cornell'],
+  'lined-college',
+);

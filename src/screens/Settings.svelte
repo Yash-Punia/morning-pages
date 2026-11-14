@@ -2,11 +2,14 @@
   import type { Params } from '../router.ts';
   import Icon from '../ui/Icon.svelte';
   import { version } from '../../package.json';
-  import { analyticsAllowed, inkSmoothing, setAnalyticsAllowed } from '../settings.ts';
+  import { analyticsAllowed, inkPaper, inkSmoothing, setAnalyticsAllowed } from '../settings.ts';
+  import { PAPER_NAMES } from '../ink/paper.ts';
   let { params: _ }: { params: Params } = $props();
 
   let shareUsage = $state(analyticsAllowed());
   $effect(() => setAnalyticsAllowed(shareUsage));
+  let paper = $state(inkPaper.get());
+  $effect(() => inkPaper.set(paper));
   let smoothing = $state(inkSmoothing.get());
   $effect(() => inkSmoothing.set(smoothing));
   const SMOOTHING_LABELS = { low: 'Low', medium: 'Medium', high: 'High' } as const;
@@ -21,6 +24,19 @@
   <h1 id="settings-title" class="screen-title">Settings</h1>
   <h2 id="writing">Writing</h2>
   <ul aria-labelledby="writing">
+    <li>
+      <label class="row">
+        <span class="text">
+          <span class="label">Paper</span>
+          <span class="hint">For today's pages and every new one</span>
+        </span>
+        <select bind:value={paper}>
+          {#each inkPaper.values as style (style)}
+            <option value={style}>{PAPER_NAMES[style]}</option>
+          {/each}
+        </select>
+      </label>
+    </li>
     <li>
       <label class="row">
         <span class="text">

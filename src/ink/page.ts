@@ -29,6 +29,14 @@ export class InkDoc {
     this.addPage();
   }
 
+  /** Change the paper of every page in this entry (and of pages added later). */
+  setPaper(paper: PaperStyle) {
+    if (paper === this.paper) return;
+    this.paper = paper;
+    for (const p of this.pages) p.paper = paper;
+    this.onChange(this.box);
+  }
+
   addPage(): Page {
     const page: Page = { id: crypto.randomUUID(), index: this.pages.length, paper: this.paper, size: 'A5', height: A5_HEIGHT };
     this.pages.push(page);

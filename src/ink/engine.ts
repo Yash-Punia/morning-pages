@@ -1,7 +1,8 @@
 // Wires the writing surface together: sizing, iOS suppression, input, gestures, rendering.
 // Plain TS outside Svelte reactivity (TDD 3). Two layers: `committed` composites cached tiles of
 // finished ink; `live` redraws only the stroke in progress (and its predicted tail) each frame.
-import { inkSmoothing } from '../settings.ts';
+import { inkPaper, inkSmoothing } from '../settings.ts';
+import { drawPaper } from './paper.ts';
 import { resolveToken, watchTheme } from './colors.ts';
 import { Gestures } from './gestures.ts';
 import { inkColor } from './inks.ts';
@@ -18,7 +19,8 @@ export interface Preset { tool: ToolId; color: InkId; size: number }
 
 export class InkEngine {
   readonly view = new Viewport();
-  readonly doc = new InkDoc('lined-college');
+  readonly doc: InkDoc;
+  private dateLabel: string;
   preset: Preset = { tool: 'fountain', color: 'blueBlack', size: 5 };
   private tiles = new TileCache();
   private gestures: Gestures;
@@ -36,7 +38,11 @@ export class InkEngine {
     private host: HTMLElement,
     private committed: HTMLCanvasElement,
     private live: HTMLCanvasElement,
+    { doc, date }: { doc: InkDoc; date: Date },
   ) {
+    this.doc = doc;
+    doc.setPaper(inkPaper.get()); // the Settings choice applies to today's pages too
+    this.dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
     this.view.docHeight = this.doc.height;
     this.doc.onChange = (box, added) => this.changed(box, added);
     this.gestures = new Gestures({
@@ -60,6 +66,10 @@ export class InkEngine {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
     this.off.push(watchTheme(() => { this.tiles.drop(); this.invalidate(true); }));
+    this.off.push(() => { this.doc.onChange = () => {}; });
+    // The printed date uses Fraunces; repaint once it has loaded (it is preloaded, so this is quick).
+    Promise.all([document.fonts.load('520 36px "Fraunces Variable"'), document.fonts.load('400 18px "Atkinson Hyperlegible Next Variable"')])
+      .then(() => { this.tiles.drop(); this.invalidate(true); }, () => {});
     this.resize();
     if (import.meta.env.VITE_E2E === '1') (window as unknown as { __ink: InkEngine }).__ink = this;
   }
@@ -197,10 +207,10 @@ export class InkEngine {
 
   private paintTile(t: Tile, ctx: Ctx2D) {
     const box = tileBox(t.col, t.row, t.res);
-    ctx.fillStyle = resolveToken('--paper');
+    const colors = { paper: resolveToken('--paper'), rule: resolveToken('--rule'), ink: resolveToken('--ink'), inkSoft: resolveToken('--ink-soft') };
     for (const page of this.doc.pages) {
       const top = this.doc.pageTop(page);
-      if (overlaps(box, [0, top, PAGE_WIDTH, top + A5_HEIGHT])) ctx.fillRect(0, top, PAGE_WIDTH, A5_HEIGHT);
+      if (overlaps(box, [0, top, PAGE_WIDTH, top + A5_HEIGHT])) drawPaper(ctx, page.paper, top, colors, { date: this.dateLabel, page: page.index + 1 });
     }
     for (const op of this.doc.strokes()) if (overlaps(box, this.doc.docBox(op))) this.paintStroke(ctx, op);
   }

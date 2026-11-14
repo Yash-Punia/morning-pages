@@ -3,14 +3,15 @@
   // progress, prediction, hover). The engine is plain TS, outside Svelte reactivity (TDD 3).
   import { onMount } from 'svelte';
   import { InkEngine } from './engine.ts';
+  import type { InkDoc } from './page.ts';
 
-  let { label }: { label: string } = $props();
+  let { label, doc, date }: { label: string; doc: InkDoc; date: Date } = $props();
   let host: HTMLDivElement;
   let committed: HTMLCanvasElement;
   let live: HTMLCanvasElement;
 
   onMount(() => {
-    const engine = new InkEngine(host, committed, live);
+    const engine = new InkEngine(host, committed, live, { doc, date });
     return () => engine.destroy();
   });
 </script>
@@ -21,11 +22,13 @@
 </div>
 
 <style>
-  /* PEN-2 / S1b: the app owns every gesture here; no selection, loupe, callout or zoom. */
+  /* PEN-2 / S1b: the app owns every gesture here; no selection, loupe, callout or zoom.
+     The desk around the page is the spine's linen. */
   .ink {
     position: absolute;
     inset: 0;
     overflow: hidden;
+    background: var(--linen);
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
