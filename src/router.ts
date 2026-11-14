@@ -13,6 +13,7 @@ const ROUTES: [template: string, title: string, load: Load][] = [
   ['/today', 'Today', async () => ({ default: Today })],
   ['/entry/:id', 'Entry', async () => ({ default: Entry })],
   ['/library', 'Library', () => import('./screens/Library.svelte')],
+  ['/calendar', 'Calendar', () => import('./screens/Calendar.svelte')],
   ['/settings', 'Settings', () => import('./screens/Settings.svelte')],
   ['/onboarding', 'Welcome', () => import('./screens/Onboarding.svelte')],
   ['/privacy', 'Privacy', () => import('./screens/Privacy.svelte')],

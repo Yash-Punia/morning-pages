@@ -5,10 +5,11 @@
   import TrialStrip from './ui/TrialStrip.svelte';
   import { isInstalled } from './pwa/standalone.ts';
 
-  // MVP destinations (PRD 10.1). Calendar, Timeline, Search and Insights join in v1.
+  // MVP destinations (PRD 10.1). Search and Insights join in v1/v2.
   const NAV: { href: string; label: string; icon: IconName }[] = [
     { href: '/today', label: 'Today', icon: 'today' },
     { href: '/library', label: 'Library', icon: 'library' },
+    { href: '/calendar', label: 'Calendar', icon: 'calendar' },
     { href: '/settings', label: 'Settings', icon: 'settings' },
   ];
   const BARE = ['/onboarding']; // first run: no navigation yet
@@ -255,6 +256,21 @@
       height: auto;
       overflow: visible;
       clip-path: none;
+    }
+  }
+  /* Six tabs don't fit labelled in a narrow Split View: icons only, names kept for VoiceOver. */
+  @media (max-width: 479.98px) {
+    .app .label,
+    .app:not(.open) .label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    a,
+    .new {
+      padding: var(--space-2);
     }
   }
 </style>
