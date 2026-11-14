@@ -110,14 +110,13 @@ describe('Gestures (D-042: fingers only scroll)', () => {
   test('every touch is logged with its contact and why it did or did not scroll', () => {
     const log: [number, string, number][] = [];
     const g = new Gestures(sink(), false, noRaf, () => {}, (c, v, h) => log.push([c, v, h]));
-    g.down(1, 0, 0, 0, 48);
-    g.down(2, 0, 0, 5, 50);
-    g.up(1, 10); g.up(2, 10);
-    g.penStart(); g.penEnd(100);
-    g.down(3, 0, 0, 200, 48);
-    g.up(3, 210);
-    g.down(4, 0, 0, 1000, 130);
-    expect(log).toEqual([[48, 'scrolled', 1], [50, 'second contact', 2], [48, 'pen guard', 1], [130, 'palm size', 1]]);
+    g.down(1, 0, 0, 0, 48); g.move(1, 0, 30, 10); g.up(1, 20);
+    g.down(2, 0, 0, 100, 50); g.down(3, 0, 0, 105, 50); g.up(2, 110); g.up(3, 110);
+    g.penStart(); g.penEnd(200);
+    g.down(4, 0, 0, 300, 48); g.up(4, 310);
+    g.down(5, 0, 0, 1000, 130); g.up(5, 1010);
+    g.down(6, 0, 0, 2000, 44); g.up(6, 2010);
+    expect(log).toEqual([[48, 'scrolled', 1], [50, 'second contact', 2], [48, 'pen guard', 1], [130, 'palm size', 1], [44, 'tap', 1]]);
   });
 
   test('the Pencil cancels a scroll, and touches just after it lifts are a resting palm', () => {
@@ -158,5 +157,71 @@ describe('Gestures (D-042: fingers only scroll)', () => {
     g.move(1, 100, 60, 10);
     g.move(2, 200, 60, 10);
     expect(s.total).toEqual([0, -40]);
+  });
+
+  // D-048: a resting hand moving to the next line must never scroll (owner feedback, M3).
+  describe('palm rejection while writing (D-048)', () => {
+    const logged = () => {
+      const log: string[] = [];
+      const s = sink();
+      return { s, log, g: new Gestures(s, false, noRaf, () => {}, (_c, v) => log.push(v)) };
+    };
+    const slide = (g: Gestures, id: number, from: [number, number], to: [number, number], t0: number, steps = 10, contact = 50) => {
+      g.down(id, from[0], from[1], t0, contact);
+      for (let i = 1; i <= steps; i++) g.move(id, from[0] + ((to[0] - from[0]) * i) / steps, from[1] + ((to[1] - from[1]) * i) / steps, t0 + i * 16, contact);
+      g.up(id, t0 + steps * 16 + 400); // lifted at rest: no fling
+    };
+
+    test('a palm sliding left (and a little down) to the next line does not scroll', () => {
+      const { g, s, log } = logged();
+      slide(g, 1, [800, 700], [200, 760], 5000);
+      expect(s.total).toEqual([0, 0]);
+      expect(log).toEqual(['sideways']);
+    });
+
+    test('a finger moving up the page scrolls, with no travel lost to the slop', () => {
+      const { g, s } = logged();
+      slide(g, 1, [400, 900], [400, 500], 5000);
+      expect(s.total[1]).toBeCloseTo(-400);
+    });
+
+    test('below and right of where the Pencil just was is the writing hand, even moving vertically', () => {
+      const { g, s, log } = logged();
+      g.penStart(1000); g.penAt(600, 400, 1000); g.penEnd(1000);
+      slide(g, 1, [700, 600], [700, 900], 1600); // past the 500 ms guard, inside the hand zone
+      expect(s.total).toEqual([0, 0]);
+      slide(g, 2, [150, 900], [150, 500], 1800); // the other hand, left of the Pencil: scrolls
+      expect(s.total[1]).toBeCloseTo(-400);
+      slide(g, 3, [700, 900], [700, 600], 3000); // the zone has expired
+      expect(log).toEqual(['hand zone', 'scrolled', 'scrolled']);
+    });
+
+    test('a Pencil hovering above the glass keeps its hand zone alive', () => {
+      const { g, s } = logged();
+      g.penAt(600, 400, 1000); // hover only: never touched
+      g.penAt(610, 420, 2400);
+      slide(g, 1, [700, 600], [700, 900], 2600);
+      expect(s.total).toEqual([0, 0]);
+    });
+
+    test('a contact that grows to palm size is undone, back to where it started', () => {
+      const { g, s, log } = logged();
+      g.down(1, 400, 900, 0, 40);
+      g.move(1, 400, 860, 16, 40);
+      g.move(1, 400, 820, 32, 40);
+      expect(s.total[1]).toBeCloseTo(-80);
+      g.move(1, 400, 800, 48, 120); // the hand settles: a palm after all
+      expect(s.total[1]).toBeCloseTo(0);
+      expect(log).toEqual(['scrolled', 'grew to palm']);
+    });
+
+    test('a scroll the Pencil interrupts within 500 ms was the palm landing first: undone', () => {
+      const { g, s, log } = logged();
+      g.down(1, 400, 900, 0, 50);
+      g.move(1, 400, 850, 16, 50);
+      g.penStart(200);
+      expect(s.total[1]).toBeCloseTo(0);
+      expect(log).toEqual(['scrolled', 'pen came down']);
+    });
   });
 });

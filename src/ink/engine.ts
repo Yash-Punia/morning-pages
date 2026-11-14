@@ -134,11 +134,13 @@ export class InkEngine {
   }
 
   private onMove(e: PointerEvent) {
+    // The writing hand rests near the Pencil, touching or hovering (D-048).
+    if (e.pointerType === 'pen') this.gestures.penAt(...this.local(e), e.timeStamp);
     // Compare the parent event's id only: Safari 18.2 coalesced events carry wrong ids (TDD 15).
     if (this.erasing && e.pointerId === this.erasing.pointerId) {
       for (const c of coalesced(e)) this.eraseAt(this.toDoc(c.clientX, c.clientY));
     } else if (this.stroke && e.pointerId === this.stroke.pointerId) this.extend(e);
-    else if (e.pointerType === 'touch') this.gestures.move(e.pointerId, ...this.local(e), e.timeStamp);
+    else if (e.pointerType === 'touch') this.gestures.move(e.pointerId, ...this.local(e), e.timeStamp, Math.max(e.width || 0, e.height || 0));
     else if (e.pointerType === 'pen' && !this.stroke && !this.erasing && e.buttons === 0) {
       this.hover = this.toDoc(e.clientX, e.clientY); // PEN-8: a ghost nib before contact
       this.invalidate();
@@ -167,13 +169,17 @@ export class InkEngine {
   }
 
   private onUp(e: PointerEvent) {
+    if (e.pointerType === 'pen' && e.type !== 'lostpointercapture') this.gestures.penAt(...this.local(e), e.timeStamp);
     if (this.owns(e)) this.penUp(e);
     else if (e.pointerType === 'touch' && e.type !== 'lostpointercapture') this.gestures.up(e.pointerId, e.timeStamp);
   }
 
   private penDown(e: PointerEvent, finger = false) {
     this.hover = null;
-    if (!finger) this.gestures.penStart(); // the Pencil cancels any pan; a drawing finger is the pan
+    if (!finger) {
+      this.gestures.penStart(e.timeStamp); // the Pencil cancels any pan; a drawing finger is the pan
+      this.gestures.penAt(...this.local(e), e.timeStamp);
+    }
     try { this.host.setPointerCapture(e.pointerId); } catch { /* synthetic or already-released pointers */ }
     if (this.mode === 'eraser') {
       this.erasing = { pointerId: e.pointerId, ids: new Set(), at: this.toDoc(e.clientX, e.clientY) };

@@ -261,6 +261,35 @@ test.describe('writing surface', () => {
     await expect(page.locator('[data-ink]')).toHaveAttribute('data-zoom', '1.000');
   });
 
+  test('moving the writing hand to the next line never scrolls; a finger still does (D-048)', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 1366 });
+    await page.goto('/today');
+    await frame(page);
+    const ink = page.locator('[data-ink]');
+    await drag(page, 'pen', { x: 200, y: 400 }, { x: 700, y: 410 }); // a sentence; page 2 gives room to scroll
+    await page.waitForTimeout(600); // past the 500 ms guard: only the classifier stands in the way
+    const box = (await ink.boundingBox())!;
+    const slide = (id: number, from: [number, number], to: [number, number]) =>
+      page.evaluate(async ({ box, id, from, to }) => {
+        const el = document.querySelector('[data-ink]')!;
+        const fire = (type: string, x: number, y: number) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: id, pointerType: 'touch', clientX: box.x + x, clientY: box.y + y, width: 60, height: 60, buttons: type === 'pointerup' ? 0 : 1 }));
+        fire('pointerdown', ...from);
+        for (let i = 1; i <= 12; i++) { fire('pointermove', from[0] + ((to[0] - from[0]) * i) / 12, from[1] + ((to[1] - from[1]) * i) / 12); await new Promise((r) => setTimeout(r, 16)); }
+        fire('pointerup', ...to);
+      }, { box, id, from, to });
+    await slide(31, [760, 520], [240, 600]); // the palm, below-right of the line's end, slides left and down
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-scroll-y', '0.0');
+    await page.waitForTimeout(1600); // the hand zone has passed
+    await slide(32, [900, 900], [300, 960]); // a palm sliding sideways anywhere still never scrolls
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-scroll-y', '0.0');
+    await slide(33, [500, 1100], [500, 600]); // a finger, up the page
+    await page.waitForTimeout(1200);
+    await frame(page);
+    expect(Number(await ink.getAttribute('data-scroll-y'))).toBeGreaterThan(300);
+  });
+
   test('a palm resting on the glass does not scroll the page (D-042)', async ({ page }) => {
     await page.goto('/today');
     await frame(page);
