@@ -44,3 +44,17 @@ test('a "New entry" left blank leaves nothing behind (ENT-1), and ⌘N starts on
   await library(page);
   await expect(page.locator('section[aria-labelledby="library-title"] li')).toHaveCount(1);
 });
+
+test('leaving a page stores a JPEG thumbnail of it, drawn in a worker (M4.7)', async ({ page }) => {
+  await drag(page, 'pen', { x: 200, y: 500 }, { x: 600, y: 520 });
+  await library(page);
+  const thumb = () => page.evaluate(async () => {
+    const { db } = (window as unknown as { __store: { db(): { pages: { toArray(): Promise<{ thumb?: ArrayBuffer; thumbOps?: number; opCount: number }[]> } } } }).__store;
+    const [p] = await db().pages.toArray();
+    if (!p?.thumb) return null;
+    const jpeg = new Uint8Array(p.thumb, 0, 2).join(',') === '255,216'; // the JPEG signature
+    return { jpeg, size: p.thumb.byteLength, current: p.thumbOps === p.opCount };
+  });
+  await expect.poll(thumb, { timeout: 10_000 }).toMatchObject({ jpeg: true, current: true });
+  expect((await thumb())!.size).toBeGreaterThan(500);
+});

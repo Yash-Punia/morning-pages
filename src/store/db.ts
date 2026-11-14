@@ -32,6 +32,9 @@ export interface EntryRec {
 export interface PageRec {
   id: string; entryId: string; index: number; paper: PaperStyle; size: 'A5'; height: number;
   opCount: number; checksum: number; updatedAt: number;
+  /** A small JPEG of the page (M4.7) as bytes (WebKit can't always store a Blob), and the
+   *  opCount it was drawn at. */
+  thumb?: ArrayBuffer; thumbOps?: number;
 }
 /** Append-only (TDD 7.2): never updated or deleted, except by purging a deleted entry. */
 export interface OpRec {
