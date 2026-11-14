@@ -46,3 +46,28 @@ test('the title sits on the paper, scrolls with it, and a tap on it never inks',
   const t1 = (await title.boundingBox())!;
   expect(t1.y).toBeLessThan(t0.y - 200); // moved up with the page
 });
+
+test('every saved morning is listed by title, newest first, and an earlier one opens to keep writing', async ({ page }) => {
+  // An earlier morning, as an earlier day of the app would have saved it.
+  await page.evaluate(async () => {
+    const { db } = (window as unknown as { __store: { db(): { entries: { add(r: object): Promise<unknown> }; pages: { add(r: object): Promise<unknown> } } } }).__store;
+    await db().entries.add({ id: 'earlier', journalId: 'default', entryDate: '2026-11-01', createdAt: 1, updatedAt: 1, title: 'First frost' });
+    await db().pages.add({ id: 'ep1', entryId: 'earlier', index: 0, paper: 'grid', size: 'A5', height: 1414, opCount: 0, checksum: 0, updatedAt: 1 });
+  });
+  const title = page.getByRole('textbox', { name: 'Entry title' });
+  await title.fill('Today, slowly');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Library', exact: true }).click();
+  const rows = page.locator('section[aria-labelledby="library-title"] li');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText('Today, slowly');
+  await expect(rows.nth(1)).toContainText('First frost');
+
+  await page.getByRole('link', { name: /First frost/ }).click();
+  await expect(page).toHaveURL(/\/entry\/earlier$/);
+  await frame(page);
+  await expect(page.getByRole('textbox', { name: 'Entry title' })).toHaveValue('First frost');
+  await drag(page, 'pen', { x: 200, y: 500 }, { x: 400, y: 500 }); // keep writing on it
+  await page.reload();
+  await frame(page);
+  await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '1');
+});

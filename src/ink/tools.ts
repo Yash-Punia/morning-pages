@@ -1,5 +1,5 @@
 // What the Pencil is set to, shared by the toolbar and the engine, and kept between visits
-// (a preference, so it lives in the settings shim until kv in M3).
+// (a preference, so it lives in localStorage, D-047).
 import { writable } from 'svelte/store';
 import type { InkId, ToolId } from './types.ts';
 

@@ -1,6 +1,9 @@
 <script lang="ts">
-  // D-018 skeleton: device facts only. The ink HUD, queue latency and the local log join in M2–M3.
+  // D-018: device facts, the ink HUD, finger calibration, and the state of saving (TDD 6, 14).
   import type { Params } from '../router.ts';
+  import { recovered } from '../store/session.ts';
+  import { writes } from '../store/queue.ts';
+  import { checkStorage, storage } from '../store/storage.ts';
   import { isInstalled } from '../pwa/standalone.ts';
   import { inkMetrics } from '../ink/metrics.ts';
   import { PALM_SIZE } from '../ink/gestures.ts';
@@ -14,16 +17,8 @@
       ? 'Ready: opens without a connection'
       : 'Installing: reload once to work offline';
 
-  let storage = $state('Checking…');
-  let persisted = $state('Checking…');
-  navigator.storage?.estimate().then(
-    (e) => (storage = `${mb(e.usage ?? 0)} of ${mb(e.quota ?? 0)}`),
-    () => (storage = 'Unknown'),
-  );
-  navigator.storage?.persisted().then(
-    (p) => (persisted = p ? 'Protected from automatic clearing' : 'Not protected yet'),
-    () => (persisted = 'Unknown'),
-  );
+  void checkStorage(); // fresh numbers for this screen
+  const saving = writes.state;
 
   // TDD 5.7 budgets: first ink within one 120 Hz frame of app work, under 1 % dropped frames.
   const ink = inkMetrics.summary();
@@ -51,8 +46,10 @@
     ['Version', version],
     ['Running as', isInstalled() ? 'Home Screen app' : 'Safari tab'],
     ['Offline', sw],
-    ['Storage used', storage],
-    ['Storage protection', persisted],
+    ['Storage used', $storage.quota ? `${mb($storage.usage)} of ${mb($storage.quota)}` : 'Unknown'],
+    ['Storage protection', $storage.persisted === null ? 'Unknown' : $storage.persisted ? 'Protected from automatic clearing' : 'Not protected yet: back up regularly'],
+    ['Saving', $saving === 'saved' ? 'Everything is saved' : `${$saving} (${writes.size} waiting)`],
+    ['Crash recovery this launch', `${recovered.replayed} restored, ${recovered.skipped} already saved, ${recovered.failed} failed`],
   ]);
 </script>
 

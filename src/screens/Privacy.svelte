@@ -18,7 +18,8 @@
   <h2>Anonymous usage counts</h2>
   <p>
     To learn how Morning Pages is used, it counts a few things: which screens open, when the app is installed or
-    opened, and how quickly it starts, in rough ranges. These counts go to Umami, a privacy-friendly analytics
+    opened, and how quickly it starts, in rough ranges. It also counts whether saving ever runs into a problem, whether
+    the iPad agreed to protect the app's storage, and whether that storage is getting full. These counts go to Umami, a privacy-friendly analytics
     service, without cookies. They never include your writing, your entries or their dates, or anything that
     identifies you. You can switch them off in <a href="/settings">Settings</a>.
   </p>

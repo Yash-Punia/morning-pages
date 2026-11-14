@@ -29,3 +29,10 @@ test('launch time is bucketed', () => {
     ['<1000', '<1000', '1000-1500', '1000-1500', '1500-3000', '1500-3000', '3000+', '3000+'],
   );
 });
+
+test('durability events carry only their enums (TDD 9.4)', () => {
+  expect(sanitize('save_error', { kind: 'quota', recovered: false, message: 'QuotaExceededError: entry 4f2…' })).toEqual({ kind: 'quota', recovered: false });
+  expect(sanitize('persist_status', { granted: true })).toEqual({ granted: true });
+  expect(sanitize('storage_warning', { pct: '80', usage: 123456 })).toEqual({ pct: '80' });
+  expect(sanitize('storage_warning', { pct: 81 })).toBeUndefined();
+});

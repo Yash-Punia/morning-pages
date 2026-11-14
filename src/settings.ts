@@ -1,4 +1,4 @@
-// Interim settings shim until the Dexie kv store lands (M3.1), which migrates these keys.
+// Preferences, in localStorage (D-047, TDD 6.5): safe to lose, read synchronously at startup.
 // Only non-journal preferences live here; DUR-8 keeps every important record out of localStorage.
 import type { SmoothingLevel } from './ink/stroke.ts';
 import type { PaperStyle } from './ink/types.ts';
@@ -33,6 +33,23 @@ export const inkSmoothing = choice<SmoothingLevel>('mp.ink.smoothing', ['low', '
 export const fingerDrawing = {
   get: () => read('mp.ink.finger') === 'on',
   set: (on: boolean) => write('mp.ink.finger', on ? 'on' : 'off'),
+};
+
+/**
+ * Where each recently open entry was scrolled to (PRD 3, step 7): reopening lands on the same
+ * page. A view preference, safe to lose; only the last few entries are kept.
+ */
+export const scrollPos = {
+  get(entryId: string): number {
+    try { return (JSON.parse(read('mp.scroll') ?? '{}') as Record<string, number>)[entryId] ?? 0; } catch { return 0; }
+  },
+  set(entryId: string, y: number) {
+    let all: Record<string, number> = {};
+    try { all = JSON.parse(read('mp.scroll') ?? '{}'); } catch { /* start over */ }
+    delete all[entryId];
+    all[entryId] = Math.round(y); // most recent last
+    write('mp.scroll', JSON.stringify(Object.fromEntries(Object.entries(all).slice(-10))));
+  },
 };
 
 /** Paper for new pages (PRD 4.4); the owner's default is lined, college. */

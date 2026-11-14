@@ -26,7 +26,7 @@ test('sends only allowlisted, content-free events, and only to Umami', async ({ 
   const { sent, stray } = await capture(page);
   await page.goto(`${ORIGIN}/today`);
   await page.goto(`${ORIGIN}/entry/${CANARY}`);
-  await expect(page.getByRole('heading', { level: 1, name: 'Entry' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Entry not found' })).toBeVisible();
   await expect.poll(() => sent.length).toBeGreaterThanOrEqual(3);
 
   const payloads = sent.map((b) => {

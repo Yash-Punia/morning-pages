@@ -57,6 +57,7 @@ test.describe('writing surface', () => {
   test('a 50-page entry scrolls end to end on tiles without long frames (INK-5)', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 1366 });
     await page.goto('/today');
+    await frame(page);
     const stats = await page.evaluate(async () => {
       type Engine = { doc: { addPage(): void; addStroke(pts: number[][], t: string, c: string, s: number): void; pages: unknown[] }; view: { panBy(x: number, y: number): void; sy: number }; invalidate(c: boolean): void };
       const ink = (window as unknown as { __ink: Engine }).__ink;
@@ -105,6 +106,7 @@ test.describe('writing surface', () => {
   test('at 4x zoom ink still lands under the pen and tile memory stays capped (D-040)', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 1366 });
     await page.goto('/today');
+    await frame(page);
     await page.evaluate(() => {
       const ink = (window as unknown as { __ink: { view: { zoomAt(z: number, x: number, y: number): void }; invalidate(c: boolean): void } }).__ink;
       ink.view.zoomAt(4, 500, 600);
@@ -139,7 +141,7 @@ test.describe('writing surface', () => {
     await drag(page, 'pen', { x: 200, y: 900 }, { x: 400, y: 900 });
     await frame(page);
     await expect(ink).toHaveAttribute('data-pages', '3'); // wrote on page 2
-    await expect(page.getByText('Practice page · not saved yet')).toBeVisible();
+    await expect(page.locator('[data-state]')).toHaveAttribute('data-state', 'saved'); // the saved dot, once on disk
   });
 
   test('the stroke eraser removes whole strokes it touches, and only those (TDD 5.6)', async ({ page }) => {

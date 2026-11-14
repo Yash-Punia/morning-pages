@@ -1,7 +1,7 @@
 // Wires the writing surface together: sizing, iOS suppression, input, gestures, rendering.
 // Plain TS outside Svelte reactivity (TDD 3). Two layers: `committed` composites cached tiles of
 // finished ink; `live` redraws only the stroke in progress (and its predicted tail) each frame.
-import { fingerDrawing, inkPaper, inkSmoothing } from '../settings.ts';
+import { fingerDrawing, inkSmoothing, scrollPos } from '../settings.ts';
 import { drawPaper, SIDE, TITLE } from './paper.ts';
 import { resolveToken, watchTheme } from './colors.ts';
 import { Gestures } from './gestures.ts';
@@ -16,7 +16,7 @@ import { NIB_ANGLE, strokePath } from './stroke.ts';
 import { A5_HEIGHT, PAGE_WIDTH, type Box, type Pt, type StrokeOp } from './types.ts';
 import { Viewport } from './viewport.ts';
 
-interface Live { pointerId: number; pts: Pt[]; pred: Pt[]; finger: boolean; last: [number, number] }
+interface Live { id: string; pointerId: number; pts: Pt[]; pred: Pt[]; finger: boolean; last: [number, number] }
 interface Erasing { pointerId: number; ids: Set<string>; at: [number, number] }
 export type Mode = 'pen' | 'eraser';
 const ERASER_RADIUS = 10; // page units
@@ -52,7 +52,6 @@ export class InkEngine {
   ) {
     this.doc = doc;
     this.titleEl = title;
-    doc.setPaper(inkPaper.get()); // the Settings choice applies to today's pages too
     this.dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
     this.view.docHeight = this.doc.height;
     this.doc.onChange = (box, added) => this.changed(box, added);
@@ -79,6 +78,9 @@ export class InkEngine {
     this.listen(host, 'wheel', (e) => this.onWheel(e as WheelEvent), { passive: false });
     this.listen(window, 'keydown', (e) => this.onKey(e as KeyboardEvent));
     this.listen(host, 'pointerleave', () => { if (this.hover) { this.hover = null; this.invalidate(); } });
+    // DUR-3: the app going to the background or closing keeps the stroke in progress.
+    this.listen(document, 'visibilitychange', () => { if (document.visibilityState === 'hidden') this.flush(); });
+    this.listen(window, 'pagehide', () => this.flush());
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -93,6 +95,11 @@ export class InkEngine {
     Promise.all([document.fonts.load('520 36px "Fraunces Variable"'), document.fonts.load('400 18px "Atkinson Hyperlegible Next Variable"')])
       .then(() => { this.tiles.drop(); this.invalidate(true); }, () => {});
     this.resize();
+    // Reopening lands where the writer left off (PRD 3, step 7).
+    this.view.sy = scrollPos.get(doc.entry.id);
+    this.view.clamp();
+    this.off.push(() => this.saveScroll());
+    this.listen(window, 'pagehide', () => this.saveScroll());
     if (import.meta.env.VITE_E2E === '1') (window as unknown as { __ink: InkEngine }).__ink = this;
   }
 
@@ -158,6 +165,7 @@ export class InkEngine {
     appendSamples(s.pts, pts);
     s.last = [e.clientX, e.clientY];
     s.pred = s.finger ? [] : predicted(e, s.pts[s.pts.length - 1]![5], this.toDoc);
+    this.draft(s);
     this.invalidate();
   }
 
@@ -186,7 +194,9 @@ export class InkEngine {
       this.eraseAt(this.erasing.at);
       return;
     }
-    this.stroke = { pointerId: e.pointerId, pts: [this.sample(e, finger, true)], pred: [], finger, last: [e.clientX, e.clientY] };
+    // The op id is assigned at pen-down, so the recovery mirror and the saved stroke share it (TDD 6.3).
+    this.stroke = { id: crypto.randomUUID(), pointerId: e.pointerId, pts: [this.sample(e, finger, true)], pred: [], finger, last: [e.clientX, e.clientY] };
+    this.draft(this.stroke);
     inkMetrics.penDown(e.timeStamp);
     this.invalidate();
   }
@@ -205,10 +215,24 @@ export class InkEngine {
     if (!s || e.pointerId !== s.pointerId) return;
     // The pointerup sample is the lift-off (~4 px jump, pressure 0): never recorded (D-036).
     this.stroke = null;
-    this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size);
+    this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size, s.id);
     if (!s.finger) this.gestures.penEnd(e.timeStamp); // palm guard after the Pencil, not after a finger
     inkMetrics.penUp();
     this.invalidate();
+  }
+
+  /** End whatever the Pencil is doing as if it had lifted now, so it is queued for saving (DUR-3). */
+  flush() {
+    const s = this.stroke, er = this.erasing;
+    this.stroke = this.erasing = null;
+    if (s) this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size, s.id);
+    if (er) this.doc.erase([...er.ids]);
+    if ((s && !s.finger) || er) this.gestures.penEnd(performance.now()); // its pointerup may never come
+    if (s || er) this.invalidate(true);
+  }
+
+  private draft(s: Live) {
+    this.doc.draft(s.id, s.pts, this.preset.tool, this.preset.color, this.preset.size);
   }
 
   undo() {
@@ -289,8 +313,18 @@ export class InkEngine {
     const d = this.host.dataset; // readable state for tests and /diagnostics
     const v = this.view;
     const state = { scrollY: v.sy.toFixed(1), zoom: v.zoom.toFixed(3), pages: String(this.doc.pages.length), strokes: String(this.doc.strokeCount) };
+    if (d.scrollY !== state.scrollY) {
+      clearTimeout(this.scrollTimer);
+      this.scrollTimer = setTimeout(this.saveScroll, 400); // once scrolling settles
+    }
     for (const [k, val] of Object.entries(state)) if (d[k] !== val) d[k] = val;
   }
+
+  private scrollTimer: ReturnType<typeof setTimeout> | undefined;
+  private saveScroll = () => {
+    clearTimeout(this.scrollTimer);
+    scrollPos.set(this.doc.entry.id, this.view.sy);
+  };
 
   /** Keep page 1's title field on its band of paper as the page scrolls (CSSOM, so CSP-safe). */
   private placeTitle() {

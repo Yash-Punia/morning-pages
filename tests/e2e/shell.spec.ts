@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 // Split View floor (PRD 10.2), without horizontal scrolling.
 const ROUTES: [path: string, heading: RegExp, nav: string | null][] = [
   ['/today', /\w+ \d+|\d+ \w+/, 'Today'],
-  ['/entry/abc', /^Entry$/, null],
+  ['/entry/abc', /^Entry not found$/, null], // no such entry on this device
   ['/library', /^Library$/, 'Library'],
   ['/settings', /^Settings$/, 'Settings'],
   ['/privacy', /^Privacy$/, 'Settings'],

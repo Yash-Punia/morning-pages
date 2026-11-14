@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "note": "A journal as schema v1 stores it: one entry, one page, a stroke and an erase. Migration tests load it and upgrade it.",
+  "tables": {
+    "journals": [
+      {
+        "id": "default",
+        "name": "Morning Pages",
+        "paper": "lined-college",
+        "sortOrder": 0,
+        "createdAt": 1763190000000,
+        "updatedAt": 1763190000000
+      }
+    ],
+    "entries": [
+      {
+        "id": "e1",
+        "journalId": "default",
+        "entryDate": "2026-11-15",
+        "createdAt": 1763190000000,
+        "updatedAt": 1763190060000,
+        "title": "Fixture morning"
+      }
+    ],
+    "pages": [
+      {
+        "id": "p1",
+        "entryId": "e1",
+        "index": 0,
+        "paper": "lined-college",
+        "size": "A5",
+        "height": 1414,
+        "opCount": 3,
+        "checksum": 1214808754,
+        "updatedAt": 1763190060000
+      }
+    ],
+    "ops": [
+      {
+        "id": "s1",
+        "pageId": "p1",
+        "seq": 1,
+        "createdAt": 1763190000000,
+        "kind": "stroke",
+        "tool": "ballpoint",
+        "color": "black",
+        "size": 2.8,
+        "pts": "AwAA8EIAAJZDAACYBGWoeUIAAMwBWLQBAIACYBoAAASAAl8aAAAEgAJgGAAABIACXxoAAASAAmAaAAAE",
+        "n": 6,
+        "bbox": [
+          115,
+          295,
+          165,
+          308
+        ]
+      },
+      {
+        "id": "s2",
+        "pageId": "p1",
+        "seq": 2,
+        "createdAt": 1763190030000,
+        "kind": "stroke",
+        "tool": "fountain",
+        "color": "blueBlack",
+        "size": 5,
+        "pts": "AwAA8EIAAJZDAACYBGWoeUIAAMwBWLQBAIACYBoAAASAAl8aAAAEgAJgGAAABIACXxoAAASAAmAaAAAE",
+        "n": 6,
+        "bbox": [
+          115,
+          295,
+          165,
+          308
+        ]
+      },
+      {
+        "id": "x1",
+        "pageId": "p1",
+        "seq": 3,
+        "createdAt": 1763190060000,
+        "kind": "erase",
+        "targets": [
+          "s2"
+        ]
+      }
+    ]
+  }
+}

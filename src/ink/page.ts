@@ -1,6 +1,7 @@
 // The entry being written: pages and their append-only op log (TDD 7.2). Visible strokes are a
-// fold of the ops; undo, redo and the eraser only ever append (DUR-2). In M2 this lives in
-// memory; M3 persists exactly these ops.
+// fold of the ops; undo, redo and the eraser only ever append (DUR-2). Every op, title and paper
+// change is reported through a hook, and the store (src/store/session.ts) saves exactly these.
+import type { EntryRef } from '../store/db.ts';
 import { pointsBox } from './stroke.ts';
 import { A5_HEIGHT, PAGE_GAP, PAGE_WIDTH, type Box, type InkId, type Op, type Page, type PaperStyle, type Pt, type StrokeOp, type ToolId } from './types.ts';
 
@@ -17,6 +18,8 @@ export function fold(ops: Op[]): Map<string, StrokeOp> {
   return all;
 }
 
+const RECOVERY_MS = 250;
+
 /** One user action, for undo: strokes added, or strokes erased by one eraser gesture. */
 type Step = { kind: 'stroke' | 'erase'; ids: string[] };
 
@@ -30,11 +33,43 @@ export class InkDoc {
   private redoStack: Step[] = [];
   /** The entry's typed title (Entry.title, TDD 7.2); empty means untitled. */
   title = '';
+  /** Which entry this is: ids are assigned when it is opened, and stored with its first write. */
+  readonly entry: EntryRef;
   /** Called with the document-space area that changed, and the stroke when one was added. */
   onChange: (box: Box, added?: StrokeOp) => void = () => {};
+  /** Every op as it is appended, with the page it belongs to: the store saves these. */
+  onOp: (op: Op, page: Page) => void = () => {};
+  onTitle: (title: string) => void = () => {};
+  onPaper: (paper: PaperStyle) => void = () => {};
 
-  constructor(public paper: PaperStyle) {
-    this.addPage();
+  constructor(public paper: PaperStyle, entry?: EntryRef, pages: Page[] = []) {
+    this.entry = entry ?? { id: crypto.randomUUID(), journalId: 'default', entryDate: '', createdAt: Date.now() };
+    this.pages.push(...pages);
+    if (!pages.length) this.addPage();
+  }
+
+  /**
+   * A saved entry: its stored pages and ops, folded back into the visible strokes. A blank page
+   * always follows, as when it was written (stored pages always run 0…n−1, since a page is only
+   * added below one that has ink, and stored with its first op).
+   */
+  static load(entry: EntryRef, title: string, pages: Page[], ops: Op[], paper: PaperStyle): InkDoc {
+    const doc = new InkDoc(pages[0]?.paper ?? paper, entry, pages);
+    doc.title = title;
+    for (const op of ops) {
+      doc.ops.push(op);
+      if (op.kind === 'stroke') doc.all.set(op.id, op);
+      doc.seq.set(op.pageId, Math.max(doc.seq.get(op.pageId) ?? 0, op.seq));
+    }
+    doc.visible = fold(ops);
+    if (pages.length) doc.addPage();
+    return doc;
+  }
+
+  setTitle(title: string) {
+    if (title === this.title) return;
+    this.title = title;
+    this.onTitle(title);
   }
 
   /** Change the paper of every page in this entry (and of pages added later). */
@@ -42,6 +77,7 @@ export class InkDoc {
     if (paper === this.paper) return;
     this.paper = paper;
     for (const p of this.pages) p.paper = paper;
+    this.onPaper(paper);
     this.onChange(this.box);
   }
 
@@ -63,15 +99,36 @@ export class InkDoc {
     return this.pages[Math.min(this.pages.length - 1, Math.max(0, i))]!;
   }
 
-  /** Record a stroke drawn in document space; it belongs to the page where it started. */
-  addStroke(docPts: Pt[], tool: ToolId, color: InkId, size: number): StrokeOp {
+  /** The page a stroke belongs to (where it started), and its points in that page's space. */
+  private onPage(docPts: Pt[]): [Page, Pt[]] {
     const page = this.pageAt(docPts[0]![1]);
     const top = this.pageTop(page);
-    const pts = docPts.map((p): Pt => [p[0], p[1] - top, p[2], p[3], p[4], p[5]]);
-    const op: StrokeOp = { kind: 'stroke', id: crypto.randomUUID(), pageId: page.id, seq: this.nextSeq(page.id), createdAt: Date.now(), tool, color, size, pts, bbox: pointsBox(pts, size) };
+    return [page, docPts.map((p): Pt => [p[0], p[1] - top, p[2], p[3], p[4], p[5]])];
+  }
+
+  private draftId = '';
+  private draftAt = -Infinity;
+  /**
+   * The stroke still being written, mirrored for crash recovery (DUR-4, D-017): at its first
+   * sample, then at most every 250 ms. `id` is the op id it will be saved under.
+   */
+  draft(id: string, docPts: Pt[], tool: ToolId, color: InkId, size: number, now = performance.now()) {
+    if (id === this.draftId && now - this.draftAt < RECOVERY_MS) return;
+    this.draftId = id;
+    this.draftAt = now;
+    const [page, pts] = this.onPage(docPts);
+    this.onDraft({ id, page, tool, color, size, pts });
+  }
+  onDraft: (d: { id: string; page: Page; tool: ToolId; color: InkId; size: number; pts: Pt[] }) => void = () => {};
+
+  /** Record a stroke drawn in document space; it belongs to the page where it started. */
+  addStroke(docPts: Pt[], tool: ToolId, color: InkId, size: number, id: string = crypto.randomUUID()): StrokeOp {
+    const [page, pts] = this.onPage(docPts);
+    const op: StrokeOp = { kind: 'stroke', id, pageId: page.id, seq: this.nextSeq(page.id), createdAt: Date.now(), tool, color, size, pts, bbox: pointsBox(pts, size) };
     this.ops.push(op);
     this.all.set(op.id, op);
     this.visible.set(op.id, op);
+    this.onOp(op, page);
     this.undoStack.push({ kind: 'stroke', ids: [op.id] });
     this.redoStack.length = 0;
     this.onChange(this.docBox(op), op);
@@ -128,7 +185,9 @@ export class InkDoc {
       if (op) byPage.set(op.pageId, [...(byPage.get(op.pageId) ?? []), id]);
     }
     for (const [pageId, targets] of byPage) {
-      this.ops.push({ kind, id: crypto.randomUUID(), pageId, seq: this.nextSeq(pageId), createdAt: Date.now(), targets });
+      const op: Op = { kind, id: crypto.randomUUID(), pageId, seq: this.nextSeq(pageId), createdAt: Date.now(), targets };
+      this.ops.push(op);
+      this.onOp(op, this.page(pageId));
       for (const id of targets) {
         const op = this.all.get(id)!;
         if (kind === 'erase') this.visible.delete(id);
