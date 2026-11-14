@@ -44,4 +44,23 @@ export async function tap(page: Page, fingers: number, at: Point = { x: 300, y: 
   }, { fingers, at, box });
 }
 
+/**
+ * Is there ink at surface point (x, y)? Reads the committed and live layers and treats a dark,
+ * opaque pixel as ink (paper and rulings are light), so it works before and after paper exists.
+ */
+export async function inkAt(page: Page, x: number, y: number, radius = 1) {
+  return page.evaluate(({ x, y, radius }) => {
+    for (const c of document.querySelectorAll<HTMLCanvasElement>('[data-ink] canvas')) {
+      const k = c.width / c.getBoundingClientRect().width;
+      const r = Math.max(1, Math.round(radius * k));
+      const d = c.getContext('2d')!.getImageData(Math.round(x * k) - r, Math.round(y * k) - r, r * 2 + 1, r * 2 + 1).data;
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = (0.2126 * d[i]! + 0.7152 * d[i + 1]! + 0.0722 * d[i + 2]!) / 255;
+        if (d[i + 3]! > 200 && lum < 0.45) return true;
+      }
+    }
+    return false;
+  }, { x, y, radius });
+}
+
 export const frame = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));

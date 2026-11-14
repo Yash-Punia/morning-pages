@@ -2,11 +2,14 @@
   import type { Params } from '../router.ts';
   import Icon from '../ui/Icon.svelte';
   import { version } from '../../package.json';
-  import { analyticsAllowed, setAnalyticsAllowed } from '../settings.ts';
+  import { analyticsAllowed, inkSmoothing, setAnalyticsAllowed } from '../settings.ts';
   let { params: _ }: { params: Params } = $props();
 
   let shareUsage = $state(analyticsAllowed());
   $effect(() => setAnalyticsAllowed(shareUsage));
+  let smoothing = $state(inkSmoothing.get());
+  $effect(() => inkSmoothing.set(smoothing));
+  const SMOOTHING_LABELS = { low: 'Low', medium: 'Medium', high: 'High' } as const;
 
   const LINKS = [
     { href: '/privacy', label: 'Privacy', hint: 'What stays on this iPad' },
@@ -16,7 +19,24 @@
 
 <section class="screen" aria-labelledby="settings-title">
   <h1 id="settings-title" class="screen-title">Settings</h1>
-  <ul>
+  <h2 id="writing">Writing</h2>
+  <ul aria-labelledby="writing">
+    <li>
+      <label class="row">
+        <span class="text">
+          <span class="label">Ink smoothing</span>
+          <span class="hint">Higher is smoother, with a little more trail behind the pen</span>
+        </span>
+        <select bind:value={smoothing}>
+          {#each inkSmoothing.values as level (level)}
+            <option value={level}>{SMOOTHING_LABELS[level]}</option>
+          {/each}
+        </select>
+      </label>
+    </li>
+  </ul>
+  <h2 id="app">This app</h2>
+  <ul aria-labelledby="app">
     <li>
       <label class="row">
         <span class="text">
@@ -42,9 +62,23 @@
 </section>
 
 <style>
+  h2 {
+    margin-top: var(--space-6);
+    font-size: var(--text-md);
+    font-weight: 700;
+  }
+  select {
+    flex: none;
+    min-height: var(--target);
+    padding: 0 var(--space-3);
+    border: var(--hairline) solid var(--rule);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+    cursor: pointer;
+  }
   ul {
     list-style: none;
-    margin: var(--space-6) 0 0;
+    margin: var(--space-3) 0 0;
     padding: 0;
     border-top: var(--hairline) solid var(--rule);
   }
