@@ -54,6 +54,9 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 | D-042 | 2026-11-15 | Fingers only scroll, with one finger: no pinch zoom, no multi-finger undo/redo | Accepted |
 | D-043 | 2026-11-15 | The fountain pen has a broad italic nib; the ballpoint is the first, default preset | Accepted |
 | D-044 | 2026-11-15 | Each entry has a typed title on page 1, listed in the Library | Accepted |
+| D-045 | 2026-11-15 | Until M4, the Library is a plain list of every saved morning | Accepted |
+| D-046 | 2026-11-15 | Entry ids are assigned on open; every write gets or creates its journal, entry and page | Accepted |
+| D-047 | 2026-11-15 | Preferences stay in localStorage; IndexedDB holds the journal | Accepted |
 
 ---
 
@@ -543,6 +546,47 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - A fixed title bar above the canvas: costs writing height on every screen.
   - A handwritten title only: can't be listed until recognition (v2).
 - **Consequences:** In M2 only today's in-memory entry is listed. M3 persists titles with entries, and the M4 Library lists every entry by title.
+
+### D-045 · Until M4, the Library is a plain list of every saved morning
+
+- **Date:** 2026-11-15 · **Status:** Accepted (owner decision, M3 planning)
+- **Context:** Once M3 saves entries, earlier mornings exist on the iPad, but the full Library (calendar, timeline, banners) is M4. Showing only today would hide saved writing for a whole milestone.
+- **Decision:**
+  - The Library lists every saved entry, not deleted, newest first: title (or "Untitled"), date and page count.
+  - Today's entry opens `/today`. An earlier one opens `/entry/:id` on the same writing surface, to read or keep writing.
+  - The 80 % storage warning (TDD 6.5) shows here too.
+- **Alternatives:** Only today's entry until M4: simpler, but saved mornings would be invisible.
+- **Consequences:**
+  - M4.5 replaces the list.
+  - Writing into an earlier entry is allowed. Version history (ENT-8) and sealing (v1) will decide later whether past entries need guarding.
+
+### D-046 · Entry ids are assigned on open; every write gets or creates its journal, entry and page
+
+- **Date:** 2026-11-15 · **Status:** Accepted (refines TDD 6.1 and ENT-1)
+- **Context:**
+  - A typed title (D-044) and the first stroke can both be an entry's first write, so a "create on first stroke" rule alone could make two entries for one morning.
+  - Recovery replay has to recreate an entry that was never saved (D-017).
+- **Decision:**
+  - An entry's id, its journal id and its page ids are assigned in memory when the entry is opened.
+  - Every write transaction (stroke, erase / restore, title, recovery replay) gets or puts the journal, entry and page rows it needs. Creation is therefore idempotent, whichever write drains first.
+  - **A non-empty title alone creates the entry**; an empty one never does.
+  - The trailing blank page is never stored. Pages are stored with their first op, so stored pages always run 0…n−1.
+  - The default journal has the fixed id `default`, so two first writes can't make two journals, and devices agree on it for M5 merges.
+  - Recovery records carry the full create context: entry, page, title, tool, ink, size and points.
+- **Alternatives:** Creating the entry in a separate first transaction: two writes could race, and a crash between them leaves an empty entry.
+- **Consequences:** ENT-1 holds; a title and a stroke racing make one entry; and the first stroke of a morning that was never saved can be recovered. Unit and e2e tests cover all three.
+
+### D-047 · Preferences stay in localStorage; IndexedDB holds the journal
+
+- **Date:** 2026-11-15 · **Status:** Accepted (amends the M2 settings-shim note, "migrates to kv in M3.1")
+- **Context:**
+  - TDD 6.5 allows `localStorage` for UI preferences that are safe to lose.
+  - Moving them into the `kv` store would make every preference read asynchronous, and the engine reads several at startup.
+- **Decision:**
+  - The following stay in `localStorage`: paper, smoothing, finger drawing, toolbar presets, dock and custom inks, the analytics opt-out, once-markers, and the last scroll position of the ten most recent entries.
+  - Everything that is writing (entries, pages, ops, titles, recovery) is in IndexedDB only (DUR-8).
+- **Alternatives:** Migrate preferences into `kv`: more code and async reads, for data that is safe to lose.
+- **Consequences:** **M5 backups won't carry preferences** unless M5 adds them explicitly. Restoring onto a new iPad brings back every page, but the paper style, presets and scroll positions need setting again.
 
 ---
 

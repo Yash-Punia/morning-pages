@@ -1,4 +1,4 @@
-// Interim settings shim until the Dexie kv store lands (M3.1), which migrates these keys.
+// Preferences, in localStorage (D-047, TDD 6.5): safe to lose, read synchronously at startup.
 // Only non-journal preferences live here; DUR-8 keeps every important record out of localStorage.
 import type { SmoothingLevel } from './ink/stroke.ts';
 import type { PaperStyle } from './ink/types.ts';

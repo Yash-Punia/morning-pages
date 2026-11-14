@@ -111,6 +111,21 @@ Throwaway prototypes in `spikes/` (committed for the record, never shipped). Eac
 | 3.11 | Restore scroll position and tool on reopen | §3 step 7 | `feat(store): resume last position and tool` | Reopen lands on same page, same tool |
 | 3.12 | Durability torture suite in CI (Playwright WebKit) | §12.3 | `test(store): durability torture suite` | Runs on every PR, zero lost strokes |
 | 3.13 | Durability signals: `save_error`, `persist_status`, `storage_warning` events | TDD §9.4 | `feat(analytics): report save errors and storage status` | Simulated errors emit one event each, with no ids or content |
+| 3.14 | Interim Library: every saved morning, newest first; earlier ones open at `/entry/:id` (owner decision, D-045) | ENT-4 (title), §10.1 | `feat(library): list every saved morning` | Entries listed by title across a reload; an earlier entry opens and takes more writing |
+
+**M3 build notes (2026-11-15):**
+- **Before M3:** an M2 fix on `m2-ink-core`: fingertips scroll. The 40 px palm limit rejected real fingers, and the limit is now 90 px, with a touch readout in `/diagnostics` (D-042 amended). M3 branched from that fix.
+- **3.1 and 3.4, creation:** made idempotent per transaction (D-046), because a typed title can also start an entry. The default journal has the fixed id `default`.
+- **3.3, the saved dot:** shows hollow only when a save takes longer than 400 ms. Most saves take about 15 ms on the iPad, so the dot doesn't flicker.
+- **3.6, held writes:**
+  - the banner's "Save a copy" exports the pending writes as JSON via the share sheet;
+  - "Back up now" arrives with M5;
+  - writes that are still held keep retrying every 5 s.
+- **3.8, the recovery mirror:** a stroke shorter than 250 ms is restored from its first-sample mirror, which may hold only its first point (a dot), as D-017 specifies.
+- **3.10, migrations:** the pre-migration hook is a no-op until M5's backup exists. No v2 schema ships before then.
+- **3.11, preferences:** these stay in `localStorage` (D-047). So does the scroll position.
+- **3.13, `save_error`:** fires once per failure series, either recovered by a retry or held, never twice for one series.
+- **Headless timing:** WebKit on Windows commits in about 100 ms, against 15 ms on the iPad. The e2e tests wait for the queue to go idle instead of using fixed delays.
 
 ### M4 · App shell and screens 🎨 · branch `m4-shell`
 
