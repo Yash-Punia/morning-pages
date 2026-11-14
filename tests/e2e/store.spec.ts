@@ -14,6 +14,17 @@ const count = (page: Page, table: string) =>
     return store.db()[t]!.count();
   }, table);
 
+/** The Pencil goes down and moves, and never lifts: the app is about to be hidden or killed. */
+async function penWithoutLift(page: Page, y: number, steps = 10) {
+  const box = (await page.locator('[data-ink]').boundingBox())!;
+  await page.evaluate(async ({ box, y, steps }) => {
+    const el = document.querySelector('[data-ink]')!;
+    const fire = (type: string, x: number) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: 'pen', isPrimary: true, clientX: box.x + x, clientY: box.y + y, pressure: 0.5, buttons: 1 }));
+    fire('pointerdown', 200);
+    for (let i = 1; i <= steps; i++) { fire('pointermove', 200 + i * 20); await new Promise((r) => setTimeout(r, 8)); }
+  }, { box, y, steps });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 1366 });
   await page.goto('/today');
@@ -62,4 +73,18 @@ test('held writes show a banner with "Save a copy" until they are on disk (TDD 6
   await expect(page.getByRole('button', { name: 'Save a copy' })).toBeVisible();
   await setState('saved');
   await expect(page.getByRole('button', { name: 'Save a copy' })).toHaveCount(0);
+});
+
+test('a stroke in progress is kept when the app is hidden or closed (DUR-3)', async ({ page }) => {
+  await penWithoutLift(page, 500);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await penWithoutLift(page, 650);
+  await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false })));
+  expect(await count(page, 'ops')).toBe(2);
+  await page.reload();
+  await frame(page);
+  await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '2');
 });

@@ -78,6 +78,9 @@ export class InkEngine {
     this.listen(host, 'wheel', (e) => this.onWheel(e as WheelEvent), { passive: false });
     this.listen(window, 'keydown', (e) => this.onKey(e as KeyboardEvent));
     this.listen(host, 'pointerleave', () => { if (this.hover) { this.hover = null; this.invalidate(); } });
+    // DUR-3: the app going to the background or closing keeps the stroke in progress.
+    this.listen(document, 'visibilitychange', () => { if (document.visibilityState === 'hidden') this.flush(); });
+    this.listen(window, 'pagehide', () => this.flush());
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -202,6 +205,16 @@ export class InkEngine {
     if (!s.finger) this.gestures.penEnd(e.timeStamp); // palm guard after the Pencil, not after a finger
     inkMetrics.penUp();
     this.invalidate();
+  }
+
+  /** End whatever the Pencil is doing as if it had lifted now, so it is queued for saving (DUR-3). */
+  flush() {
+    const s = this.stroke, er = this.erasing;
+    this.stroke = this.erasing = null;
+    if (s) this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size);
+    if (er) this.doc.erase([...er.ids]);
+    if ((s && !s.finger) || er) this.gestures.penEnd(performance.now()); // its pointerup may never come
+    if (s || er) this.invalidate(true);
   }
 
   undo() {
