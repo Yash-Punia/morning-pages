@@ -95,12 +95,29 @@ describe('Gestures (D-042: fingers only scroll)', () => {
     expect(s.total).toEqual([0, 0]);
   });
 
-  test('palm-sized contacts are ignored', () => {
+  test('a real fingertip scrolls (iOS reports ~40–60 px); palm-sized contacts are ignored', () => {
     const s = sink();
     const g = gestures(s);
-    expect(g.down(1, 100, 100, 0, 70)).toBe(false);
-    g.move(1, 100, 0, 10);
-    expect(s.total).toEqual([0, 0]);
+    expect(g.down(1, 100, 100, 0, 52)).toBe(true); // iPad fingertip: 2 × majorRadius
+    g.move(1, 100, 60, 10);
+    g.up(1, 400);
+    expect(s.total).toEqual([0, -40]);
+    expect(g.down(2, 100, 100, 1000, 120)).toBe(false);
+    g.move(2, 100, 0, 1010);
+    expect(s.total).toEqual([0, -40]);
+  });
+
+  test('every touch is logged with its contact and why it did or did not scroll', () => {
+    const log: [number, string, number][] = [];
+    const g = new Gestures(sink(), false, noRaf, () => {}, (c, v, h) => log.push([c, v, h]));
+    g.down(1, 0, 0, 0, 48);
+    g.down(2, 0, 0, 5, 50);
+    g.up(1, 10); g.up(2, 10);
+    g.penStart(); g.penEnd(100);
+    g.down(3, 0, 0, 200, 48);
+    g.up(3, 210);
+    g.down(4, 0, 0, 1000, 130);
+    expect(log).toEqual([[48, 'scrolled', 1], [50, 'second contact', 2], [48, 'pen guard', 1], [130, 'palm size', 1]]);
   });
 
   test('the Pencil cancels a scroll, and touches just after it lifts are a resting palm', () => {

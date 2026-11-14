@@ -3,6 +3,7 @@
   import type { Params } from '../router.ts';
   import { isInstalled } from '../pwa/standalone.ts';
   import { inkMetrics } from '../ink/metrics.ts';
+  import { PALM_SIZE } from '../ink/gestures.ts';
   import { version } from '../../package.json';
   let { params: _ }: { params: Params } = $props();
 
@@ -34,8 +35,19 @@
       ]
     : [['Writing performance', 'Write a few lines on Today, then come back']];
 
+  // D-042 calibration: the last few finger touches on the page, their contact size, and why each
+  // did or didn't scroll. Kept in memory, so open this screen from the app, not with a reload.
+  const touches = inkMetrics.touches();
+  const touchRow = [
+    `Recent finger touches (palm limit ${PALM_SIZE} px)`,
+    touches.length
+      ? touches.map((t) => `${t.contact} px → ${t.verdict}${t.held > 1 ? ` (${t.held} held)` : ''}`).join(' · ')
+      : 'Scroll on Today with a finger, then come back',
+  ];
+
   const rows = $derived([
     ...inkRows,
+    touchRow,
     ['Version', version],
     ['Running as', isInstalled() ? 'Home Screen app' : 'Safari tab'],
     ['Offline', sw],

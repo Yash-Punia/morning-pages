@@ -269,9 +269,9 @@ test.describe('writing surface', () => {
       const el = document.querySelector('[data-ink]')!;
       const fire = (type: string, id: number, x: number, y: number, size: number) =>
         el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: id, pointerType: 'touch', clientX: box.x + x, clientY: box.y + y, width: size, height: size, buttons: type === 'pointerup' ? 0 : 1 }));
-      fire('pointerdown', 41, 400, 500, 80); // a palm-sized contact
-      for (let i = 1; i <= 8; i++) fire('pointermove', 41, 400, 500 - i * 40, 80);
-      fire('pointerup', 41, 400, 180, 80);
+      fire('pointerdown', 41, 400, 500, 120); // a palm-sized contact (over PALM_SIZE 90)
+      for (let i = 1; i <= 8; i++) fire('pointermove', 41, 400, 500 - i * 40, 120);
+      fire('pointerup', 41, 400, 180, 120);
     }, { box });
     await frame(page);
     await expect(page.locator('[data-ink]')).toHaveAttribute('data-scroll-y', '0.0');

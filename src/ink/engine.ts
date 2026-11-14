@@ -58,7 +58,13 @@ export class InkEngine {
     this.doc.onChange = (box, added) => this.changed(box, added);
     // D-042: fingers only scroll (one finger, or two together in finger-drawing mode). No zoom,
     // no tap-to-undo: a resting palm was being read as those gestures.
-    this.gestures = new Gestures({ pan: (dx, dy) => { this.view.panBy(dx, dy); this.invalidate(true); } }, this.fingerDraw);
+    this.gestures = new Gestures(
+      { pan: (dx, dy) => { this.view.panBy(dx, dy); this.invalidate(true); } },
+      this.fingerDraw,
+      undefined,
+      undefined,
+      inkMetrics.touch, // what each finger did, for /diagnostics (D-042 calibration)
+    );
 
     // PEN-2 / S1b: no selection loupe, callout, double-tap or pinch zoom from the browser.
     const prevent = (e: Event) => e.preventDefault();

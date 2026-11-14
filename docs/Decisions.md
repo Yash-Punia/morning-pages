@@ -509,7 +509,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 - **Context:** On the iPad (M2 owner check), a palm resting on the glass while writing was read as gestures. It undid the last stroke as a "two-finger tap", or panned and zoomed the page. The owner asked for pinch zoom and tap-to-undo to be removed, keeping only single-finger scrolling.
 - **Decision:** Fingers do exactly one thing on the page: **one finger scrolls**, with inertia.
   - A second contact cancels any scroll until every finger has lifted.
-  - Palm-sized contacts (over 40 CSS px) are ignored.
+  - Palm-sized contacts (over 90 CSS px) are ignored. *Amended 2026-11-15:* the first limit, 40, rejected real fingertips, so nothing scrolled on the iPad. iOS reports a touch's width as 2 × `UITouch.majorRadius`, about 40–60 px for a fingertip. `/diagnostics` lists the last few touches with their size and why each did or didn't scroll, so the limit can be tuned from real numbers.
   - The pen still cancels a scroll, with the 500 ms palm guard after it lifts.
   - No pinch zoom, no trackpad zoom, no two- or three-finger taps. Undo and redo are the toolbar buttons and ⌘Z / ⇧⌘Z.
   - In "Draw with finger" mode, where one finger writes, two fingers together scroll (still no zoom).

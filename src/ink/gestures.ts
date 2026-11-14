@@ -10,8 +10,14 @@ export interface GestureSink {
   pan(dx: number, dy: number): void;
 }
 
+/** Why a touch did or didn't scroll, for the /diagnostics readout. */
+export type TouchVerdict = 'scrolled' | 'two-finger scroll' | 'second contact' | 'pen down' | 'pen guard' | 'palm size';
+export type TouchLog = (contact: number, verdict: TouchVerdict, held: number) => void;
+
 const PALM_GUARD_MS = 500;
-const PALM_SIZE = 40; // CSS px of contact: a fingertip is ~10–25, a resting palm is larger
+// CSS px of contact. iOS reports 2 × UITouch.majorRadius, so a fingertip reads ~40–60 and a resting
+// palm well over 90. (40 rejected real fingertips: nothing scrolled on the iPad.)
+export const PALM_SIZE = 90;
 const FRICTION = 0.998; // per ms, close to iOS's normal scroll deceleration
 const MIN_SPEED = 0.02; // px/ms
 
@@ -32,22 +38,33 @@ export class Gestures {
     private twoFingerScroll = false,
     private raf: (cb: (t: number) => void) => number = (cb) => requestAnimationFrame(cb),
     private caf: (id: number) => void = (id) => cancelAnimationFrame(id),
+    private log: TouchLog = () => {},
   ) {}
 
   /** Returns true when this touch takes part in scrolling. */
   down(id: number, x: number, y: number, t: number, contact = 0): boolean {
     this.touches.add(id);
-    if (this.twoFingerScroll && this.touches.size === 2 && !this.locked && !this.penDown) {
+    const held = this.touches.size;
+    if (this.twoFingerScroll && held === 2 && !this.locked && !this.penDown) {
       this.pair = new Map([[id, { x, y }]]);
       if (this.finger) this.pair.set(this.finger.id, { x: this.finger.x, y: this.finger.y });
       this.finger = null;
+      this.log(contact, 'two-finger scroll', held);
       return true;
     }
-    if (this.touches.size > 1) { this.cancel(); this.locked = true; return false; }
-    if (this.penDown || t < this.penBlockUntil || contact > PALM_SIZE) { this.locked = true; return false; }
+    const refuse = (verdict: TouchVerdict) => {
+      this.locked = true;
+      this.log(contact, verdict, held);
+      return false;
+    };
+    if (held > 1) { this.cancel(); return refuse('second contact'); }
+    if (this.penDown) return refuse('pen down');
+    if (t < this.penBlockUntil) return refuse('pen guard');
+    if (contact > PALM_SIZE) return refuse('palm size');
     this.stopInertia();
     this.finger = { id, x, y };
     this.moves = [];
+    this.log(contact, 'scrolled', held);
     return true;
   }
 

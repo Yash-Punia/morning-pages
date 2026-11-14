@@ -4,8 +4,15 @@ const firstInk: number[] = []; // ms from the pen-down event to the first live d
 const deltas: number[] = []; // rAF deltas while a stroke is active
 let pending = -1;
 let lastFrame = 0;
+/** The last few finger contacts and what scrolling made of them (D-042 calibration). */
+const touches: { contact: number; verdict: string; held: number }[] = [];
 
 export const inkMetrics = {
+  touch(contact: number, verdict: string, held: number) {
+    touches.push({ contact: Math.round(contact), verdict, held });
+    if (touches.length > 8) touches.shift();
+  },
+  touches: () => [...touches],
   penDown(eventTime: number) {
     pending = eventTime;
     lastFrame = 0;
