@@ -54,3 +54,12 @@ test('a stroke is saved, the dot turns solid, and it is there after a relaunch',
   await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '1');
   await expect(page.locator('[data-ink]')).toHaveAttribute('data-pages', '2');
 });
+
+test('held writes show a banner with "Save a copy" until they are on disk (TDD 6.2)', async ({ page }) => {
+  const setState = (s: string) => page.evaluate((s) => (window as unknown as { __store: { writes: { state: { set(v: string): void } } } }).__store.writes.state.set(s), s);
+  await setState('full');
+  await expect(page.getByText('This iPad is out of space, so your latest writing')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save a copy' })).toBeVisible();
+  await setState('saved');
+  await expect(page.getByRole('button', { name: 'Save a copy' })).toHaveCount(0);
+});

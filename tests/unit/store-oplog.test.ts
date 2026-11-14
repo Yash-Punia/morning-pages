@@ -30,3 +30,28 @@ describe('the op log on disk (DUR-2)', () => {
     expect(await db().ops.count()).toBe(doc.ops.length);
   });
 });
+
+describe('write errors (TDD 6.2, STO-4)', () => {
+  test('a lost connection mid-writing loses no ops: the queue reopens and retries', async () => {
+    const doc = await openToday(day);
+    // The prototype that owns add(): shared by every Dexie instance, so the fault survives a reopen.
+    let proto = Object.getPrototypeOf(db().ops);
+    while (!Object.hasOwn(proto, 'add')) proto = Object.getPrototypeOf(proto);
+    const add = proto.add;
+    let failures = 3;
+    proto.add = function (this: { name: string }, ...a: unknown[]) {
+      if (this.name === 'ops' && failures-- > 0) throw Object.assign(new Error('Connection to Indexed Database server lost'), { name: 'UnknownError' });
+      return add.apply(this, a);
+    };
+    try {
+      for (let i = 0; i < 5; i++) doc.addStroke(line(200 + i * 60), 'ballpoint', 'black', 2.8);
+      await saved();
+    } finally {
+      proto.add = add;
+    }
+    expect(failures).toBeLessThan(0);
+    expect(await db().ops.count()).toBe(5);
+    forgetOpened();
+    expect((await openToday(day)).strokeCount).toBe(5);
+  });
+});
