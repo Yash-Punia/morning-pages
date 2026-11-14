@@ -57,7 +57,7 @@ test('every saved morning is listed by title, newest first, and an earlier one o
   const title = page.getByRole('textbox', { name: 'Entry title' });
   await title.fill('Today, slowly');
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Library', exact: true }).click();
-  const rows = page.locator('section[aria-labelledby="library-title"] li');
+  const rows = page.locator('section[aria-labelledby="recent-heading"] li');
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText('Today, slowly');
   await expect(rows.nth(1)).toContainText('First frost');

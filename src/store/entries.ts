@@ -72,20 +72,37 @@ export async function readEntry(d: JournalDB, id: string): Promise<{ entry: Entr
   });
 }
 
-export interface EntryRow { id: string; entryDate: string; title: string; pages: number; updatedAt: number }
+export interface EntryRow {
+  id: string; entryDate: string; title: string; pages: number; createdAt: number; updatedAt: number;
+  /** The first page's paper and thumbnail (M4.7), for lists that show pages. */
+  paper: PaperStyle; thumb?: ArrayBuffer;
+}
 
-/** Every saved entry, newest morning first, with its page count. */
-export async function listEntries(d: JournalDB): Promise<EntryRow[]> {
+/**
+ * Saved entries (not deleted), newest morning first, with page counts. `from` and `to` are
+ * inclusive local dates on the entryDate index, so the Calendar and Timeline read only the months
+ * they show. `thumbs` also loads each first page's thumbnail.
+ */
+export async function listEntries(d: JournalDB, opts: { from?: string; to?: string; thumbs?: boolean } = {}): Promise<EntryRow[]> {
   return d.transaction('r', [d.entries, d.pages], async () => {
-    const entries = (await d.entries.toArray()).filter((e) => !e.deletedAt);
+    const range = opts.from || opts.to
+      ? d.entries.where('entryDate').between(opts.from ?? '', opts.to ?? '9999-12-31', true, true)
+      : d.entries.toCollection();
+    const entries = (await range.toArray()).filter((e) => !e.deletedAt);
     entries.sort((a, b) => (a.entryDate < b.entryDate ? 1 : a.entryDate > b.entryDate ? -1 : b.createdAt - a.createdAt));
-    return Promise.all(entries.map(async (e) => ({
-      id: e.id,
-      entryDate: e.entryDate,
-      title: e.title ?? '',
-      pages: Math.max(1, await d.pages.where('entryId').equals(e.id).count()),
-      updatedAt: e.updatedAt,
-    })));
+    return Promise.all(entries.map(async (e) => {
+      const first = await d.pages.where('[entryId+index]').equals([e.id, 0]).first();
+      return {
+        id: e.id,
+        entryDate: e.entryDate,
+        title: e.title ?? '',
+        pages: Math.max(1, await d.pages.where('entryId').equals(e.id).count()),
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+        paper: first?.paper ?? 'lined-college',
+        thumb: opts.thumbs ? first?.thumb : undefined,
+      };
+    }));
   });
 }
 

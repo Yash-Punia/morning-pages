@@ -83,12 +83,17 @@ function paperPalette(): Palette {
 }
 
 const running = new WeakMap<InkDoc, Promise<void>>();
+let latest: Promise<void> = Promise.resolve();
+
+/** Resolves when the thumbnails being drawn right now are saved (the Library waits briefly). */
+export const thumbsSettled = () => latest;
 
 /** Redraw the thumbnails of this entry's stored pages that changed since their last one. */
 export function refreshThumbs(doc: InkDoc, render: Render = inWorker, palette: () => Palette = paperPalette): Promise<void> {
   const prev = running.get(doc) ?? Promise.resolve();
   const next = prev.then(() => refresh(doc, render, palette)).catch(() => { /* retried at the next close */ });
   running.set(doc, next);
+  latest = Promise.all([latest, next]).then(() => {});
   return next;
 }
 

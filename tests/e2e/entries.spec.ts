@@ -20,7 +20,7 @@ test('"New entry" starts a second entry this morning; both are listed, and Today
   await page.getByRole('textbox', { name: 'Entry title' }).fill('After coffee');
 
   await library(page);
-  const rows = page.locator('section[aria-labelledby="library-title"] li');
+  const rows = page.locator('section[aria-labelledby="recent-heading"] li');
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText('After coffee');
   await expect(rows.nth(1)).toContainText('First thoughts');
@@ -42,7 +42,7 @@ test('a "New entry" left blank leaves nothing behind (ENT-1), and ⌘N starts on
   await frame(page);
   await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '0');
   await library(page);
-  await expect(page.locator('section[aria-labelledby="library-title"] li')).toHaveCount(1);
+  await expect(page.locator('section[aria-labelledby="recent-heading"] li')).toHaveCount(1);
 });
 
 test('leaving a page stores a JPEG thumbnail of it, drawn in a worker (M4.7)', async ({ page }) => {
@@ -57,4 +57,21 @@ test('leaving a page stores a JPEG thumbnail of it, drawn in a worker (M4.7)', a
   });
   await expect.poll(thumb, { timeout: 10_000 }).toMatchObject({ jpeg: true, current: true });
   expect((await thumb())!.size).toBeGreaterThan(500);
+});
+
+test('the Library opens with today, this week and recent mornings (M4.5)', async ({ page }) => {
+  await library(page);
+  await expect(page.getByText('Nothing written yet')).toBeVisible();
+  await expect(page.getByRole('link', { name: "Start today's page" })).toBeVisible();
+  const week = page.getByRole('list', { name: 'This week' });
+  await expect(week.getByRole('listitem')).toHaveCount(7);
+  await expect(week.locator('[aria-current="date"]')).toHaveCount(1);
+
+  await page.getByRole('link', { name: "Start today's page" }).click();
+  await frame(page);
+  await page.getByRole('textbox', { name: 'Entry title' }).fill('Grey sky');
+  await library(page);
+  await expect(page.getByRole('link', { name: 'Continue today' })).toBeVisible();
+  await expect(week.locator('[aria-current="date"]')).toHaveAttribute('aria-label', /, written$/);
+  await expect(page.locator('section[aria-labelledby="recent-heading"] li')).toContainText('Grey sky');
 });
