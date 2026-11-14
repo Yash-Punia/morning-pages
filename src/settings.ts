@@ -29,6 +29,12 @@ function choice<T extends string>(key: string, values: readonly T[], fallback: T
 /** Ink smoothing (D-036): higher is smoother but trails the pen slightly more. */
 export const inkSmoothing = choice<SmoothingLevel>('mp.ink.smoothing', ['low', 'medium', 'high'], 'medium');
 
+/** PEN-7: one finger draws (for people without a Pencil); two fingers scroll. Off by default. */
+export const fingerDrawing = {
+  get: () => read('mp.ink.finger') === 'on',
+  set: (on: boolean) => write('mp.ink.finger', on ? 'on' : 'off'),
+};
+
 /** Paper for new pages (PRD 4.4); the owner's default is lined, college. */
 export const inkPaper = choice<PaperStyle>(
   'mp.ink.paper',

@@ -1,7 +1,7 @@
 // Wires the writing surface together: sizing, iOS suppression, input, gestures, rendering.
 // Plain TS outside Svelte reactivity (TDD 3). Two layers: `committed` composites cached tiles of
 // finished ink; `live` redraws only the stroke in progress (and its predicted tail) each frame.
-import { inkPaper, inkSmoothing } from '../settings.ts';
+import { fingerDrawing, inkPaper, inkSmoothing } from '../settings.ts';
 import { drawPaper } from './paper.ts';
 import { resolveToken, watchTheme } from './colors.ts';
 import { Gestures } from './gestures.ts';
@@ -16,7 +16,7 @@ import { outline, outlinePath } from './stroke.ts';
 import { A5_HEIGHT, PAGE_WIDTH, type Box, type Pt, type StrokeOp } from './types.ts';
 import { Viewport } from './viewport.ts';
 
-interface Live { pointerId: number; pts: Pt[]; pred: Pt[] }
+interface Live { pointerId: number; pts: Pt[]; pred: Pt[]; finger: boolean; last: [number, number] }
 interface Erasing { pointerId: number; ids: Set<string>; at: [number, number] }
 export type Mode = 'pen' | 'eraser';
 const ERASER_RADIUS = 10; // page units
@@ -41,6 +41,7 @@ export class InkEngine {
   /** What the Pencil does: write with the preset, or erase whole strokes (TDD 5.6). */
   mode: Mode = 'pen';
   private smoothing = inkSmoothing.get();
+  private fingerDraw = fingerDrawing.get(); // PEN-7 setting
 
   constructor(
     private host: HTMLElement,
@@ -113,40 +114,67 @@ export class InkEngine {
     const r = this.host.getBoundingClientRect(); // the spine may have moved the surface
     this.origin = { x: r.left, y: r.top };
     if (e.pointerType === 'pen') this.penDown(e);
-    else if (e.pointerType === 'touch') this.gestures.down(e.pointerId, ...this.local(e), e.timeStamp);
+    else if (e.pointerType !== 'touch') return;
+    else if (this.fingerDraw && !this.stroke && !this.erasing && !this.gestures.active) this.penDown(e, true);
+    else if (this.stroke?.finger) {
+      // A second finger: the first one was starting a scroll or zoom, not writing. Drop the
+      // stroke and hand both fingers to the gestures (PEN-7: two fingers pan and zoom).
+      const s = this.stroke;
+      this.stroke = null;
+      this.gestures.down(s.pointerId, ...this.local({ clientX: s.last[0], clientY: s.last[1] }), e.timeStamp);
+      this.gestures.down(e.pointerId, ...this.local(e), e.timeStamp);
+      this.invalidate();
+    } else this.gestures.down(e.pointerId, ...this.local(e), e.timeStamp);
   }
 
   private onMove(e: PointerEvent) {
-    if (e.pointerType === 'touch') this.gestures.move(e.pointerId, ...this.local(e), e.timeStamp);
+    // Compare the parent event's id only: Safari 18.2 coalesced events carry wrong ids (TDD 15).
+    if (this.erasing && e.pointerId === this.erasing.pointerId) {
+      for (const c of coalesced(e)) this.eraseAt(this.toDoc(c.clientX, c.clientY));
+    } else if (this.stroke && e.pointerId === this.stroke.pointerId) this.extend(e);
+    else if (e.pointerType === 'touch') this.gestures.move(e.pointerId, ...this.local(e), e.timeStamp);
     else if (e.pointerType === 'pen' && !this.stroke && !this.erasing && e.buttons === 0) {
       this.hover = this.toDoc(e.clientX, e.clientY); // PEN-8: a ghost nib before contact
-      this.invalidate();
-    } else if (e.pointerType === 'pen' && this.erasing && e.pointerId === this.erasing.pointerId) {
-      for (const c of coalesced(e)) this.eraseAt(this.toDoc(c.clientX, c.clientY));
-    } else if (e.pointerType === 'pen' && this.stroke && e.pointerId === this.stroke.pointerId) {
-      // Compare the parent event's id only: Safari 18.2 coalesced events carry wrong ids (TDD 15).
-      const s = this.stroke;
-      appendSamples(s.pts, coalesced(e).map((c) => toPt(c, this.toDoc)));
-      s.pred = predicted(e, s.pts[s.pts.length - 1]![5], this.toDoc);
       this.invalidate();
     }
   }
 
+  /** The pointer that is writing or erasing right now, whatever its type. */
+  private owns(e: PointerEvent) {
+    return e.pointerId === (this.stroke ?? this.erasing)?.pointerId;
+  }
+
+  private extend(e: PointerEvent) {
+    const s = this.stroke!;
+    const pts = coalesced(e).map((c) => this.sample(c, s.finger));
+    appendSamples(s.pts, pts);
+    s.last = [e.clientX, e.clientY];
+    s.pred = s.finger ? [] : predicted(e, s.pts[s.pts.length - 1]![5], this.toDoc);
+    this.invalidate();
+  }
+
+  /** Touch reports no real pressure, so finger ink uses a steady medium pressure. */
+  private sample(e: PointerEvent, finger: boolean, down = false): Pt {
+    const pt = toPt(e, this.toDoc, down);
+    if (finger) pt[2] = 0.5;
+    return pt;
+  }
+
   private onUp(e: PointerEvent) {
-    if (e.pointerType === 'pen') this.penUp(e);
+    if (this.owns(e)) this.penUp(e);
     else if (e.pointerType === 'touch' && e.type !== 'lostpointercapture') this.gestures.up(e.pointerId, e.timeStamp);
   }
 
-  private penDown(e: PointerEvent) {
+  private penDown(e: PointerEvent, finger = false) {
     this.hover = null;
-    this.gestures.penStart();
+    if (!finger) this.gestures.penStart(); // the Pencil cancels any pan; a drawing finger is the pan
     try { this.host.setPointerCapture(e.pointerId); } catch { /* synthetic or already-released pointers */ }
     if (this.mode === 'eraser') {
       this.erasing = { pointerId: e.pointerId, ids: new Set(), at: this.toDoc(e.clientX, e.clientY) };
       this.eraseAt(this.erasing.at);
       return;
     }
-    this.stroke = { pointerId: e.pointerId, pts: [toPt(e, this.toDoc, true)], pred: [] };
+    this.stroke = { pointerId: e.pointerId, pts: [this.sample(e, finger, true)], pred: [], finger, last: [e.clientX, e.clientY] };
     inkMetrics.penDown(e.timeStamp);
     this.invalidate();
   }
@@ -157,7 +185,7 @@ export class InkEngine {
     if (er && e.pointerId === er.pointerId) {
       this.erasing = null;
       this.doc.erase([...er.ids]); // one erase op per gesture (per page touched)
-      this.gestures.penEnd(e.timeStamp);
+      if (e.pointerType === 'pen') this.gestures.penEnd(e.timeStamp);
       this.invalidate(true);
       return;
     }
@@ -166,7 +194,7 @@ export class InkEngine {
     // The pointerup sample is the lift-off (~4 px jump, pressure 0): never recorded (D-036).
     this.stroke = null;
     this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size);
-    this.gestures.penEnd(e.timeStamp);
+    if (!s.finger) this.gestures.penEnd(e.timeStamp); // palm guard after the Pencil, not after a finger
     inkMetrics.penUp();
     this.invalidate();
   }

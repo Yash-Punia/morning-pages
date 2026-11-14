@@ -204,6 +204,43 @@ test.describe('writing surface', () => {
     expect(await liveAlpha()).toBe(0); // gone when the Pencil moves away
   });
 
+  test('"Draw with finger": off by default; when on, one finger inks and two fingers still scroll (PEN-7)', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 1366 });
+    await page.goto('/settings');
+    const toggle = page.getByRole('switch', { name: 'Draw with finger' });
+    await expect(toggle).not.toBeChecked();
+    await page.goto('/today');
+    await frame(page);
+    await drag(page, 'touch', { x: 200, y: 500 }, { x: 400, y: 500 });
+    await frame(page);
+    await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '0'); // off: fingers scroll
+
+    await page.goto('/settings');
+    await toggle.check();
+    await page.goto('/today');
+    await frame(page);
+    await drag(page, 'touch', { x: 200, y: 500 }, { x: 400, y: 500 });
+    await frame(page);
+    await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '1');
+    expect(await inkAt(page, 300, 500)).toBe(true);
+
+    // Two fingers: the first finger's stroke is dropped and the pair scrolls instead.
+    const ink = page.locator('[data-ink]');
+    const box = (await ink.boundingBox())!;
+    await page.evaluate(({ box }) => {
+      const el = document.querySelector('[data-ink]')!;
+      const fire = (type: string, id: number, x: number, y: number) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: id, pointerType: 'touch', clientX: box.x + x, clientY: box.y + y, buttons: type === 'pointerup' ? 0 : 1 }));
+      fire('pointerdown', 31, 300, 900);
+      fire('pointerdown', 32, 400, 900);
+      for (let i = 1; i <= 10; i++) { fire('pointermove', 31, 300, 900 - i * 40); fire('pointermove', 32, 400, 900 - i * 40); }
+      fire('pointerup', 31, 300, 500);
+      fire('pointerup', 32, 400, 500);
+    }, { box });
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-strokes', '1'); // no new ink
+    expect(Number(await ink.getAttribute('data-scroll-y'))).toBeGreaterThan(100); // it scrolled
+  });
+
   test('one finger scrolls the page (D-007)', async ({ page }) => {
     await page.goto('/today');
     const ink = page.locator('[data-ink]');

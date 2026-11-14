@@ -2,7 +2,7 @@
   import type { Params } from '../router.ts';
   import Icon from '../ui/Icon.svelte';
   import { version } from '../../package.json';
-  import { analyticsAllowed, inkPaper, inkSmoothing, setAnalyticsAllowed } from '../settings.ts';
+  import { analyticsAllowed, fingerDrawing, inkPaper, inkSmoothing, setAnalyticsAllowed } from '../settings.ts';
   import { PAPER_NAMES } from '../ink/paper.ts';
   let { params: _ }: { params: Params } = $props();
 
@@ -13,6 +13,8 @@
   let smoothing = $state(inkSmoothing.get());
   $effect(() => inkSmoothing.set(smoothing));
   const SMOOTHING_LABELS = { low: 'Low', medium: 'Medium', high: 'High' } as const;
+  let finger = $state(fingerDrawing.get());
+  $effect(() => fingerDrawing.set(finger));
 
   const LINKS = [
     { href: '/privacy', label: 'Privacy', hint: 'What stays on this iPad' },
@@ -48,6 +50,15 @@
             <option value={level}>{SMOOTHING_LABELS[level]}</option>
           {/each}
         </select>
+      </label>
+    </li>
+    <li>
+      <label class="row">
+        <span class="text">
+          <span class="label">Draw with finger</span>
+          <span class="hint">For writing without a Pencil; two fingers scroll and zoom</span>
+        </span>
+        <input type="checkbox" role="switch" bind:checked={finger} />
       </label>
     </li>
   </ul>
