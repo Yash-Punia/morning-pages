@@ -7,9 +7,10 @@
   import Icon from '../ui/Icon.svelte';
   let { params: _ }: { params: Params } = $props();
 
-  // Saved entries, read once every pending write is on disk. M4 brings the full Library.
+  // Every saved morning, newest first, read once pending writes are on disk (owner decision, M3).
+  // M4 replaces this list with the full Library: calendar, timeline and banners.
   const today = localDate(new Date());
-  const rows = saved().then(() => listEntries(db())).then((r) => r.filter((e) => e.entryDate === today));
+  const rows = saved().then(() => listEntries(db()));
   const longDate = (d: string) => new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(fromLocalDate(d));
 </script>
 
@@ -24,7 +25,7 @@
       <ul>
         {#each rows as entry (entry.id)}
           <li>
-            <a href="/today">
+            <a href={entry.entryDate === today ? '/today' : `/entry/${entry.id}`}>
               <span class="text">
                 <span class="title" class:untitled={!entry.title}>{entry.title || 'Untitled'}</span>
                 <span class="meta">{longDate(entry.entryDate)} · {entry.pages} {entry.pages === 1 ? 'page' : 'pages'}</span>
