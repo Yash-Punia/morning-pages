@@ -3,6 +3,7 @@
   import { db } from '../store/db.ts';
   import { listEntries } from '../store/entries.ts';
   import { fromLocalDate, localDate, saved } from '../store/session.ts';
+  import { storage } from '../store/storage.ts';
   import Icon from '../ui/Icon.svelte';
   let { params: _ }: { params: Params } = $props();
 
@@ -14,6 +15,10 @@
 
 <section class="screen" aria-labelledby="library-title">
   <h1 id="library-title" class="screen-title">Library</h1>
+  {#if $storage.warn}
+    <!-- TDD 6.5: from 80 % of the space the journal may use. Banners live here, never on Today. -->
+    <p class="warn" role="status">This iPad is {$storage.warn} % full for the journal. Free some space so new pages keep saving.</p>
+  {/if}
   {#await rows then rows}
     {#if rows.length}
       <ul>
@@ -81,5 +86,12 @@
   .meta {
     color: var(--ink-soft);
     font-size: var(--text-sm);
+  }
+  .warn {
+    margin: var(--space-5) 0 0;
+    padding: var(--space-3) var(--space-4);
+    border-left: 3px solid var(--accent-ink);
+    background: color-mix(in oklch, var(--linen) 60%, transparent);
+    max-width: 40rem;
   }
 </style>
