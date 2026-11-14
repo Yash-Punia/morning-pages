@@ -123,8 +123,10 @@ test('reopening lands on the same place, with the same pen (PRD 3, step 7)', asy
   await page.getByRole('button', { name: /Fountain pen, Blue-black/ }).click();
   await page.waitForTimeout(600); // past the palm guard
   await drag(page, 'touch', { x: 500, y: 1100 }, { x: 500, y: 500 }, { steps: 6 });
-  await page.waitForTimeout(1500); // inertia settles and the position is saved
-  const y = Number(await ink.getAttribute('data-scroll-y'));
+  // Inertia settles (slower under a loaded test machine), then the position is saved.
+  let y = NaN;
+  await expect.poll(async () => { const prev = y; await page.waitForTimeout(300); y = Number(await ink.getAttribute('data-scroll-y')); return y === prev; }, { timeout: 10_000 }).toBe(true);
+  await page.waitForTimeout(500); // the save waits 400 ms after the last change
   expect(y).toBeGreaterThan(300);
   await page.reload();
   await frame(page);

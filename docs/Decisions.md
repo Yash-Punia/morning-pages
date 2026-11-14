@@ -57,6 +57,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 | D-045 | 2026-11-15 | Until M4, the Library is a plain list of every saved morning | Accepted |
 | D-046 | 2026-11-15 | Entry ids are assigned on open; every write gets or creates its journal, entry and page | Accepted |
 | D-047 | 2026-11-15 | Preferences stay in localStorage; IndexedDB holds the journal | Accepted |
+| D-048 | 2026-11-15 | Palm rejection for finger scrolling: hand zone, direction, and revisable decisions | Accepted |
 
 ---
 
@@ -587,6 +588,34 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - Everything that is writing (entries, pages, ops, titles, recovery) is in IndexedDB only (DUR-8).
 - **Alternatives:** Migrate preferences into `kv`: more code and async reads, for data that is safe to lose.
 - **Consequences:** **M5 backups won't carry preferences** unless M5 adds them explicitly. Restoring onto a new iPad brings back every page, but the paper style, presets and scroll positions need setting again.
+
+### D-048 · Palm rejection for finger scrolling: hand zone, direction, and revisable decisions
+
+- **Date:** 2026-11-15 · **Status:** Accepted (extends D-042)
+- **Context:**
+  - After a sentence, the owner slides their resting palm from the right of the page to the left, and slightly down, to start the next line. That slide scrolled the page.
+  - iOS gives a web page no palm flag. Its own palm rejection classifies by `UITouch.majorRadius` and system context the page can't see.
+  - D-042's defences (second contact, the Pencil, a 500 ms guard, a contact-size limit) miss a palm that lands alone, a moment after the pen lifts, on the narrow edge of the hand.
+- **Research it builds on:**
+  - Schwarz, Xiao, Mankoff, Hudson and Harrison, *Probabilistic Palm Rejection Using Spatiotemporal Touch Features and Iterative Classification*, CHI '14: classify each touch over windows growing to ~500 ms from its birth, and revise early calls.
+  - Annett, Gupta and Bischof, *Exploring and Understanding Unintended Touch during Direct Pen Interaction*, ToCHI 2014: pen information greatly reduces accidental touches.
+  - Microsoft's "inactive region based on contextual information" patent (US 9,804,707), and Vogel et al.'s hand-occlusion model: for a right-hander, the hand rests below and right of the nib.
+  - iOS scroll views: a touch slop of about 10 pt, and directional lock.
+- **Decision:** a one-finger touch scrolls only if it passes every check:
+  1. no other contact, no Pencil down, not within 500 ms of the Pencil lifting, and a contact of at most 90 px (D-042);
+  2. **hand zone:** it doesn't land within −80…+520 px across and −160…+640 px down of where the Pencil last was, touching *or hovering*, in the last 1.5 s. This is right-handed only;
+  3. **direction:** after 10 px of travel it is moving more vertically than sideways. The page never scrolls sideways, so a sideways slide is a hand changing lines, at any time;
+  4. **revision:** in its first 500 ms, a scroll that grows to palm size, or that the Pencil touches down during, is undone back to where it started and ignored until all contacts lift.
+  - `/diagnostics` shows each touch's verdict: `hand zone`, `sideways`, `grew to palm`, `pen came down`, `tap`, `scrolled`, and so on.
+- **Alternatives:**
+  - Two-finger scrolling only, as some note apps do: the owner chose one finger (D-042).
+  - Turning finger scrolling off while the Pencil is near: a hand zone keeps the other hand free to scroll.
+  - A trained classifier: no labelled touch data from the owner's iPad yet. The readout can collect it if the rules prove too coarse.
+- **Consequences:**
+  - A finger scroll that starts right below-right of the last pen point, within 1.5 s of writing, is ignored; scroll from elsewhere, or a moment later.
+  - Scrolling starts after 10 px of travel, as on iOS.
+  - The zone is right-handed; a left-handed setting would mirror it.
+  - The thresholds are tunable from the `/diagnostics` readout on the owner's iPad.
 
 ---
 

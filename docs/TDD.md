@@ -185,8 +185,9 @@ Amended by D-042 (owner feedback, M2): a resting palm was read as gestures, so f
 
 | Gesture | Action |
 | --- | --- |
-| 1 finger drag | Scroll (with inertia) |
+| 1 finger drag, mostly vertical, past a 10 px slop | Scroll (with inertia) |
 | A second contact, or a palm-sized one | Nothing: scrolling stops until every finger lifts |
+| A touch that first slides sideways, lands below-right of the Pencil's last point (within 1.5 s), or grows to palm size within 500 ms | The writing hand (D-048): never scrolls; a scroll it began is undone |
 | 2 fingers, "Draw with finger" mode only | Scroll (one finger writes in that mode) |
 | Pen hover, no buttons | Ghost nib preview (round tip, or the fountain's slanted italic edge, D-043) |
 | Tap the active preset on the toolbar | Edit that preset (pen, ink, size) |

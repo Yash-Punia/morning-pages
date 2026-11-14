@@ -39,7 +39,7 @@ test('the title sits on the paper, scrolls with it, and a tap on it never inks',
   expect(onTitle).toBe(false);
 
   await drag(page, 'pen', { x: 200, y: 700 }, { x: 400, y: 700 }); // adds page 2, so there is room to scroll
-  await page.waitForTimeout(600); // past the palm guard
+  await page.waitForTimeout(1600); // past the hand zone: a touch just below-right of the pen is the palm (D-048)
   await drag(page, 'touch', { x: 500, y: 900 }, { x: 500, y: 500 }, { steps: 6 });
   await page.waitForTimeout(1200); // inertia settles
   await frame(page);
