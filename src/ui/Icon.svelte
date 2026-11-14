@@ -8,6 +8,11 @@
     'rail-open': 'M4.5 5.5h15v13h-15z M9.5 5.5v13 M13 10l2 2-2 2',
     'rail-close': 'M4.5 5.5h15v13h-15z M9.5 5.5v13 M15 10l-2 2 2 2',
     'arrow-right': 'M5 12h14 M13 6l6 6-6 6',
+    eraser: 'M8.5 19.5h11 M4.9 14.6l8.5-8.5a2 2 0 0 1 2.8 0l2.7 2.7a2 2 0 0 1 0 2.8l-7.6 7.6a2 2 0 0 1-1.4.6H8.5a2 2 0 0 1-1.4-.6l-2.2-2.2a1.7 1.7 0 0 1 0-2.4Z M9.4 10.1l5.5 5.5',
+    undo: 'M9 14l-4-4 4-4 M5 10h9a5 5 0 0 1 0 10h-3',
+    redo: 'M15 14l4-4-4-4 M19 10h-9a5 5 0 0 0 0 10h3',
+    grip: 'M9 6.5h.01 M15 6.5h.01 M9 12h.01 M15 12h.01 M9 17.5h.01 M15 17.5h.01',
+    fold: 'M8 8l8 8 M16 8l-8 8',
   } as const;
   export type IconName = keyof typeof PATHS;
 </script>

@@ -86,9 +86,9 @@ export class InkDoc {
   erase(ids: string[]) {
     const live = ids.filter((id) => this.visible.has(id));
     if (!live.length) return;
-    this.apply('erase', live);
-    this.undoStack.push({ kind: 'erase', ids: live });
+    this.undoStack.push({ kind: 'erase', ids: live }); // stacks first: listeners read canUndo
     this.redoStack.length = 0;
+    this.apply('erase', live);
   }
 
   get canUndo() { return this.undoStack.length > 0; }
@@ -98,15 +98,15 @@ export class InkDoc {
   undo() {
     const step = this.undoStack.pop();
     if (!step) return;
-    this.apply(step.kind === 'stroke' ? 'erase' : 'restore', step.ids);
     this.redoStack.push(step);
+    this.apply(step.kind === 'stroke' ? 'erase' : 'restore', step.ids);
   }
 
   redo() {
     const step = this.redoStack.pop();
     if (!step) return;
-    this.apply(step.kind === 'stroke' ? 'restore' : 'erase', step.ids);
     this.undoStack.push(step);
+    this.apply(step.kind === 'stroke' ? 'restore' : 'erase', step.ids);
   }
 
   /** Strokes whose outline is within `r` of document point (x, y). */

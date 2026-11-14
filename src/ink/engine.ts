@@ -10,14 +10,14 @@ import { inkColor } from './inks.ts';
 import { appendSamples, coalesced, predicted, toPt } from './input.ts';
 import { inkMetrics } from './metrics.ts';
 import { InkDoc } from './page.ts';
+import { commands, history, tools, type Preset } from './tools.ts';
 import { overlaps, TileCache, tileBox, tileRes, tileUnits, type Ctx2D, type Tile } from './renderer.ts';
 import { outline, outlinePath } from './stroke.ts';
-import { A5_HEIGHT, PAGE_WIDTH, type Box, type InkId, type Pt, type StrokeOp, type ToolId } from './types.ts';
+import { A5_HEIGHT, PAGE_WIDTH, type Box, type Pt, type StrokeOp } from './types.ts';
 import { Viewport } from './viewport.ts';
 
 interface Live { pointerId: number; pts: Pt[]; pred: Pt[] }
 interface Erasing { pointerId: number; ids: Set<string>; at: [number, number] }
-export interface Preset { tool: ToolId; color: InkId; size: number }
 export type Mode = 'pen' | 'eraser';
 const ERASER_RADIUS = 10; // page units
 
@@ -75,6 +75,11 @@ export class InkEngine {
     this.ro.observe(host);
     this.off.push(watchTheme(() => { this.tiles.drop(); this.invalidate(true); }));
     this.off.push(() => { this.doc.onChange = () => {}; });
+    // The toolbar sets the preset and mode; the engine reports what can be undone.
+    this.off.push(tools.subscribe((s) => { this.preset = s.presets[s.active]!; this.mode = s.mode; }));
+    Object.assign(commands, { undo: () => this.undo(), redo: () => this.redo() });
+    this.off.push(() => Object.assign(commands, { undo: () => {}, redo: () => {} }));
+    this.reportHistory();
     // The printed date uses Fraunces; repaint once it has loaded (it is preloaded, so this is quick).
     Promise.all([document.fonts.load('520 36px "Fraunces Variable"'), document.fonts.load('400 18px "Atkinson Hyperlegible Next Variable"')])
       .then(() => { this.tiles.drop(); this.invalidate(true); }, () => {});
@@ -206,8 +211,13 @@ export class InkEngine {
   }
 
   /** The document changed in `box`: paint an added stroke into cached tiles, or drop them. */
+  private reportHistory() {
+    history.set({ canUndo: this.doc.canUndo, canRedo: this.doc.canRedo });
+  }
+
   private changed(box: Box, added?: StrokeOp) {
     this.view.docHeight = this.doc.height;
+    this.reportHistory();
     const res = this.res;
     for (const t of [...this.tiles.overlapping(box)]) {
       if (added && t.res === res) this.paintStroke(this.tiles.context(t), added);
