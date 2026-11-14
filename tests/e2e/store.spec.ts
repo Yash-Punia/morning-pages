@@ -27,6 +27,24 @@ test('opening Today and leaving without writing stores nothing (ENT-1)', async (
   expect(await count(page, 'pages')).toBe(0);
 });
 
+test('erase, undo and redo survive a relaunch exactly (DUR-2)', async ({ page }) => {
+  const ink = page.locator('[data-ink]');
+  for (const y of [400, 500, 600]) await drag(page, 'pen', { x: 200, y }, { x: 500, y });
+  await page.evaluate(() => { (window as unknown as { __ink: { mode: string } }).__ink.mode = 'eraser'; });
+  await drag(page, 'pen', { x: 350, y: 360 }, { x: 350, y: 430 }); // erases the first line
+  await page.evaluate(() => { (window as unknown as { __ink: { mode: string } }).__ink.mode = 'pen'; });
+  await page.keyboard.press('ControlOrMeta+z'); // the first line is back
+  await page.keyboard.press('ControlOrMeta+z'); // the third line goes
+  await page.keyboard.press('ControlOrMeta+Shift+z'); // and returns
+  await page.keyboard.press('ControlOrMeta+z'); // and goes again
+  await frame(page);
+  await expect(ink).toHaveAttribute('data-strokes', '2');
+  expect(await count(page, 'ops')).toBe(3 + 5); // 3 strokes, then erase / restore / erase / restore / erase
+  await page.reload();
+  await frame(page);
+  await expect(ink).toHaveAttribute('data-strokes', '2');
+});
+
 test('a stroke is saved, the dot turns solid, and it is there after a relaunch', async ({ page }) => {
   await drag(page, 'pen', { x: 200, y: 500 }, { x: 420, y: 520 });
   await expect(page.locator('[data-state]')).toHaveAttribute('data-state', 'saved');
