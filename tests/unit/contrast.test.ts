@@ -33,6 +33,9 @@ const PAIRS: [string, string, number][] = [
   ['ink-soft', 'paper', 4.5], ['ink-soft', 'linen', 4.5],
   ['accent-ink', 'paper', 4.5], ['accent-ink', 'linen', 4.5],
   ['accent', 'paper', 3], ['accent', 'linen', 3], ['sage', 'paper', 3],
+  // Pen inks are read like text on the page
+  ['pen-black', 'paper', 4.5], ['pen-blueBlack', 'paper', 4.5], ['pen-sepia', 'paper', 4.5],
+  ['pen-forest', 'paper', 4.5], ['pen-crimson', 'paper', 4.5],
 ];
 
 test('the anchor colours from the PRD are present', () => {

@@ -171,7 +171,7 @@
   @media (max-width: 899.98px) {
     .app {
       grid-template-columns: minmax(0, 1fr);
-      padding-bottom: calc(var(--target) + var(--space-5) + env(safe-area-inset-bottom));
+      padding-bottom: var(--tabbar-h);
     }
     .spine {
       position: fixed;

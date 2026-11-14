@@ -49,6 +49,11 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 | D-037 | 2026-11-14 | Size canvases from their own box, never from `100vh` or `innerHeight` | Accepted |
 | D-038 | 2026-11-14 | Pin TypeScript 6, not 7, for the app | Accepted |
 | D-039 | 2026-11-14 | Interim production URL `morning-pages-rose.vercel.app` until a custom domain | Accepted |
+| D-040 | 2026-11-14 | Pages at most 1000 CSS px wide; tiles are fixed-size bitmaps whose page-unit span varies with zoom | Accepted |
+| D-041 | 2026-11-14 | The tool pill docks in its own gutter (left by default) instead of floating over the page | Accepted |
+| D-042 | 2026-11-15 | Fingers only scroll, with one finger: no pinch zoom, no multi-finger undo/redo | Accepted |
+| D-043 | 2026-11-15 | The fountain pen has a broad italic nib; the ballpoint is the first, default preset | Accepted |
+| D-044 | 2026-11-15 | Each entry has a typed title on page 1, listed in the Library | Accepted |
 
 ---
 
@@ -469,6 +474,75 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 - **Decision:** Production is `morning-pages-rose.vercel.app`, and `VITE_PRODUCTION_HOST` is set to it for Production only. Analytics send only from that host.
 - **Alternatives:** Buy a custom domain now; the owner deferred it.
 - **Consequences:** Only test data lives on this origin. The custom domain is still required before the M6 dogfood (D-002, §11.3); moving then strands nothing real. When it changes, update `VITE_PRODUCTION_HOST` and the Umami website's domain.
+
+### D-040 · Pages at most 1000 CSS px wide; tiles are fixed-size bitmaps whose page-unit span varies with zoom
+
+- **Date:** 2026-11-14 · **Status:** Accepted
+- **Context:** TDD 5.5 specified 512 × 512-unit tiles at 1×/2×/4× of the device pixel ratio, with an LRU of 24 tiles (≈ 100 MB at 2×). In M2 testing at DPR 2, zooming in pushed tile resolution to 8 px per unit. A 512-unit tile then became 4096 × 4096 px (64 MB), so a few visible tiles exceeded the budget and visible tiles were evicted every frame. On iPad Safari that also risks the global canvas memory limit, where canvases silently go blank. Separately, fitting the page to any surface width made the unit scale arbitrary, so tiles were rarely pixel-exact.
+- **Decision:**
+  1. A page is shown at most **1000 CSS px wide**. At zoom 1 on the reference iPad (DPR 2), one page unit is exactly **2 device px**. Wider surfaces centre the page on the linen desk.
+  2. Every tile is a **1024 × 1024 px bitmap**. Its resolution is the next power of two at or above the device scale, so tiles are only ever downsampled. A tile covers `1024 / res` page units: 512 units at the reference 2 px per unit, as TDD 5.5 intended, and 128 units at 8 px per unit.
+  3. The cache is capped by **pixels**: 24 tiles × 1024², about 100 MB, at any zoom.
+  4. Tiles are detached `<canvas>` elements, not `OffscreenCanvas`, so the iPad runs exactly the path the e2e suite exercises.
+- **Alternatives:**
+  - Cap the resolution at 4: blurry at maximum zoom.
+  - Fixed 512-unit tiles with a smaller count cap: thrashes when zoomed in.
+- **Consequences:**
+  - Memory per tile is constant, so the budget holds at 4×; an e2e test writes at 4× and checks the cap.
+  - Tile edges are blitted at whole device pixels, so no seams.
+  - TDD 5.5 is amended accordingly.
+
+### D-041 · The tool pill docks in its own gutter (left by default) instead of floating over the page
+
+- **Date:** 2026-11-14 · **Status:** Accepted
+- **Context:** PRD 4.3 describes "a compact floating pill" that "never covers the writing line" (PRD 10.2). On iPad portrait, the page fills the surface width, so a pill floating at the left edge would sit over the start of every line, exactly where a right-handed writer begins each word. The owner writes right-handed, so the pill belongs on the left, away from the resting palm. The owner confirmed this on 2026-11-14.
+- **Decision:** Docked left, top or right, the pill sits in its own linen gutter (4.5 rem), and the page reflows beside or below it. It still looks like a floating pill (paper, `--shadow-float`). Folded, it becomes a single dot that floats over the edge, and it starts folded at phone width. The default dock is **left**, matching the owner's handedness. Tapping the active preset again opens its editor (owner's choice).
+- **Alternatives:** A pill floating over the page, as in the PRD's literal wording: it covers line starts on portrait.
+- **Consequences:**
+  - The page loses about 72 CSS px of width while docked at the side. In landscape that comes out of the linen desk; in portrait the page shrinks slightly.
+  - A handedness setting can switch the default dock later; the dock already persists.
+  - **Amends the PRD's "floating" wording; the "never covers the writing line" rule takes priority.**
+
+### D-042 · Fingers only scroll, with one finger: no pinch zoom, no multi-finger undo/redo
+
+- **Date:** 2026-11-15 · **Status:** Accepted (supersedes the gesture rows of TDD 5.3 and the zoom part of D-007 and PEN-7)
+- **Context:** On the iPad (M2 owner check), a palm resting on the glass while writing was read as gestures. It undid the last stroke as a "two-finger tap", or panned and zoomed the page. The owner asked for pinch zoom and tap-to-undo to be removed, keeping only single-finger scrolling.
+- **Decision:** Fingers do exactly one thing on the page: **one finger scrolls**, with inertia.
+  - A second contact cancels any scroll until every finger has lifted.
+  - Palm-sized contacts (over 40 CSS px) are ignored.
+  - The pen still cancels a scroll, with the 500 ms palm guard after it lifts.
+  - No pinch zoom, no trackpad zoom, no two- or three-finger taps. Undo and redo are the toolbar buttons and ⌘Z / ⇧⌘Z.
+  - In "Draw with finger" mode, where one finger writes, two fingers together scroll (still no zoom).
+- **Alternatives:**
+  - Keep zoom behind a toolbar control: not requested; can return later as a button if wanted.
+  - A dedicated scroll strip at the edge: offered; the owner chose plain one-finger scrolling.
+- **Consequences:** Page zoom is fixed at 1. The viewport keeps its zoom code (tested) in case a zoom control is added later. **Deviates from PRD PEN-7 (pinch zoom) and the PRD 4.3 / TDD 5.3 tap gestures, at the owner's request.**
+
+### D-043 · The fountain pen has a broad italic nib; the ballpoint is the first, default preset
+
+- **Date:** 2026-11-15 · **Status:** Accepted (refines the M2 presets)
+- **Context:** Owner feedback on the M2 preview: the ballpoint is the everyday pen and should be selected by default. The fountain pen's round tip ("just a dot") should be a slanted nib for more artistic, cursive writing.
+- **Decision:**
+  - Presets are, in order: ballpoint black (selected), fountain blue-black, fountain sepia, ballpoint crimson. The saved toolbar moved to a v2 key so the new order reaches devices that saved the old one.
+  - The fountain pen draws with a **broad italic nib**: a flat edge at a fixed 30° slant. The mark is the area that edge sweeps, built as one quad per segment, all wound the same way so the nonzero fill unions them, plus a fine hairline so strokes along the edge never vanish. The result is thick downstrokes and hairline cross-strokes.
+  - Size 5 is about a 0.65 mm italic. A first, bolder width turned the owner's real handwriting into heavy calligraphy; the finer default keeps it legible, and bigger sizes go bolder.
+  - The hover preview shows the slanted nib, and the toolbar swatch draws a wave with it.
+- **Alternatives:** Pressure-only width (the old fountain): no direction-dependent thick and thin, which is what made it look like a dot.
+- **Consequences:** The fountain's outline for hit-testing is the sweep's boundary. Raw samples are still what's stored (D-036), so the nib can be retuned later without rewriting entries. The nib angle is fixed; a left-handed angle setting could follow.
+
+### D-044 · Each entry has a typed title on page 1, listed in the Library
+
+- **Date:** 2026-11-15 · **Status:** Accepted (pulls a typed title forward; ENT-4's handwriting-suggested title stays in M13)
+- **Context:** The owner wants a place at the top of each entry for a title typed with the keyboard, and to see entries by title in the Library.
+- **Decision:**
+  - Page 1's header band (now 150 units) holds a real text field in Fraunces, placeholder "Title". The engine positions it on the paper, so it scrolls with the page.
+  - The field sits outside the canvas host, so a tap on it never inks; Scribble may also write into it.
+  - The printed date becomes a quiet line beneath the title.
+  - The title is the entry's `title` field (TDD 7.2). The Library lists the entry by title (or "Untitled"), date and page count.
+- **Alternatives:**
+  - A fixed title bar above the canvas: costs writing height on every screen.
+  - A handwritten title only: can't be listed until recognition (v2).
+- **Consequences:** In M2 only today's in-memory entry is listed. M3 persists titles with entries, and the M4 Library lists every entry by title.
 
 ---
 
