@@ -5,6 +5,8 @@ export const SCHEMA = {
   app_open: { mode: ['standalone', 'browser'], morning: [true, false] },
   install_detected: {},
   launch_perf: { ms: ['<1000', '1000-1500', '1500-3000', '3000+'] },
+  onboarding_step: { step: ['1', '2', '3'] },
+  onboarding_done: {},
   // Durability in the wild (TDD 9.4): should stay at zero.
   save_error: { kind: ['connection', 'quota', 'unknown'], recovered: [true, false] },
   persist_status: { granted: [true, false] },
