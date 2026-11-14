@@ -199,8 +199,8 @@ canvas.addEventListener('lostpointercapture', onEnd);
 ### 5.5 Rendering (INK-1 … INK-5)
 
 - **Live layer:** one viewport-sized canvas on top, cleared and redrawn each `requestAnimationFrame` while a stroke is active, idle otherwise.
-- **Committed layer:** pages are cut into **512 × 512 page-unit tiles**. Each visible tile is an `OffscreenCanvas` (or `<canvas>` fallback) at the current zoom bucket (1×, 2×, 4× of DPR). New strokes draw incrementally into the tiles they intersect (via bbox); full tile redraw only on zoom-bucket change, undo, erase or theme switch.
-- **Tile cache cap:** Safari enforces a global canvas memory limit and silently blanks canvases above it. The cache is an LRU of at most **24 tiles** (≈ 100 MB at 2× DPR); evicted tiles release memory by setting `width = height = 0`.
+- **Committed layer** (D-040): every tile is a detached **1024 × 1024 px `<canvas>`** at a power-of-two resolution at or above the device scale, so it is only ever downsampled. It covers `1024 / res` page units: **512 units at the reference iPad's 2 px per unit**, fewer when zoomed in. Pages are at most 1000 CSS px wide on screen. New strokes draw incrementally into the tiles they intersect (via bbox), and each stroke's outline is built once and reused. Full tile redraws happen only on a resolution change, undo, erase or theme switch. Panning only re-blits tiles, at whole device pixels so no seams show.
+- **Tile cache cap:** Safari enforces a global canvas memory limit and silently blanks canvases above it. The cache is an LRU capped by **pixels**: 24 tiles × 1024², about 100 MB, at every zoom. Evicted tiles release memory by setting `width = height = 0`.
 - **Paper** (blank, lined narrow/college/wide, dotted, grid, Cornell) is drawn per tile beneath ink from `paper.ts`; optional grain texture rendered once into a pattern.
 - **Dark paper / ink inversion:** ink colour is stored as a palette id (`ink.blueBlack`, …) plus hex for custom colours. Themes map palette ids to colours; custom colours are inverted by flipping OKLCH lightness. Pages stay readable in both modes.
 
