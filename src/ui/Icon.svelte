@@ -12,13 +12,16 @@
     undo: 'M9 14l-4-4 4-4 M5 10h9a5 5 0 0 1 0 10h-3',
     redo: 'M15 14l4-4-4-4 M19 10h-9a5 5 0 0 0 0 10h3',
     grip: 'M9 6.5h.01 M15 6.5h.01 M9 12h.01 M15 12h.01 M9 17.5h.01 M15 17.5h.01',
-    fold: 'M8 8l8 8 M16 8l-8 8',
+    // Fold toward the edge the pill is docked to (not "×", which reads as close or delete).
+    'fold-left': 'M14.5 6.5L9 12l5.5 5.5',
+    'fold-right': 'M9.5 6.5L15 12l-5.5 5.5',
+    'fold-top': 'M6.5 14.5L12 9l5.5 5.5',
   } as const;
   export type IconName = keyof typeof PATHS;
 </script>
 
 <script lang="ts">
-  let { name, size = 24 }: { name: IconName; size?: number } = $props();
+  let { name, size = 24, weight = 1.75 }: { name: IconName; size?: number; weight?: number } = $props();
 </script>
 
 <svg
@@ -28,7 +31,7 @@
   viewBox="0 0 24 24"
   fill="none"
   stroke="currentColor"
-  stroke-width="1.75"
+  stroke-width={weight}
   stroke-linecap="round"
   stroke-linejoin="round"
   aria-hidden="true"

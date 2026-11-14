@@ -103,10 +103,10 @@
     <span class="rule" aria-hidden="true"></span>
     <button type="button" class="tool grip" aria-label={`Move writing tools (docked ${$tools.dock})`}
       onpointerdown={gripDown} onpointerup={gripUp} onpointercancel={() => (drag = null)} onkeydown={gripKey}>
-      <Icon name="grip" />
+      <Icon name="grip" weight={3} />
     </button>
     <button type="button" class="tool" aria-label="Fold writing tools away" onclick={() => { editing = false; tools.update((s) => ({ ...s, collapsed: true })); }}>
-      <Icon name="fold" />
+      <Icon name={`fold-${$tools.dock}`} />
     </button>
 
     {#if editing}
