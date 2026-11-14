@@ -101,6 +101,16 @@ textarea {
   animation-timing-function: var(--ease-out);
 }
 
+/* In the accessibility tree, not on screen */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Times, dates and counts that line up */
 time,
 data {

@@ -17,6 +17,7 @@ export default defineConfig({
     url: 'http://localhost:4175',
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { VITE_PRODUCTION_HOST: '127.0.0.1', VITE_UMAMI_WEBSITE_ID: 'e2e-test-site' },
+    // VITE_E2E exposes the ink engine as window.__ink for tests that need a 50-page entry.
+    env: { VITE_PRODUCTION_HOST: '127.0.0.1', VITE_UMAMI_WEBSITE_ID: 'e2e-test-site', VITE_E2E: '1' },
   },
 });

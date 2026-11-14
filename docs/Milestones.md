@@ -86,6 +86,14 @@ Throwaway prototypes in `spikes/` (committed for the record, never shipped). Eac
 | 2.12 | "Draw with finger" setting | PEN-7 | `feat(ink): optional finger drawing` | Finger draws when on; off by default |
 | 2.13 | Impeccable critique → audit → polish on canvas chrome | §10 | `style(ink): impeccable polish pass on writing screen` | Audit has no high-severity findings |
 
+**M2 build notes (2026-11-14), recorded honestly:**
+- **2.4 `ink:check`:** gates on the owner's page recorded with the current input. The older page, recorded before the D-036 fix, is reported but not gated; the check detects such pages by their backwards timestamps.
+- **2.5 "50-page entry without dropped frames":** headless WebKit renders canvases in software, so wall-clock frame times measure the test machine. The e2e test instead checks what the code controls: only new tiles get painted while scrolling, per-tile JS work is cheap, and memory stays capped. Real smoothness comes from the iPad `/diagnostics` HUD at the owner check.
+- **2.5 tiles:** fixed-size bitmaps instead of fixed 512-unit tiles, and no `OffscreenCanvas` (D-040).
+- **2.8 and 2.9:** the 2.8 commit also carries the op log's undo/redo model, since it shares erase's append path; 2.9 wires the gestures and keys.
+- **2.10:** the pill docks in a gutter (D-041).
+- Today's entry lives in memory for the session, so visiting Settings keeps the page; M3 makes it durable.
+
 ### M3 · Durable store · branch `m3-durable-store`
 
 | # | Feature | PRD | Commit | Done when |

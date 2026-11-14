@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "ink:check": "node scripts/ink-check.ts"
   },
   "devDependencies": {
     "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
@@ -29,5 +30,8 @@
     "vite": "8.3.8",
     "vite-plugin-pwa": "2.0.0",
     "vitest": "5.1.0"
+  },
+  "dependencies": {
+    "perfect-freehand": "1.2.3"
   }
 }
