@@ -7,7 +7,8 @@ import { pointsBox } from '../ink/stroke.ts';
 import type { Page, PaperStyle, StrokeOp } from '../ink/types.ts';
 import { inkPaper } from '../settings.ts';
 import { fromRecord, toRecord } from './codec.ts';
-import { db, DEFAULT_JOURNAL, type PageRef, type RecoveryRec, type WriteCtx } from './db.ts';
+import { db, DB_VERSION, dbName, DEFAULT_JOURNAL, type PageRef, type RecoveryRec, type WriteCtx } from './db.ts';
+import { noBackupYet, prepareOpen } from './migrate.ts';
 import { commitOp, commitPaper, commitTitle, entryOn, readEntry } from './entries.ts';
 import { writes } from './queue.ts';
 
@@ -102,8 +103,12 @@ export async function saved(): Promise<void> {
 export const recovered = { replayed: 0, skipped: 0, failed: 0 };
 let booted: Promise<void> | undefined;
 
-/** Launch: put back any stroke that was being written when the app was killed, before anything opens. */
-export const ready = () => (booted ??= replayRecovery());
+/**
+ * Launch, before anything opens: give an older journal a chance to be backed up before its
+ * schema is upgraded (TDD 7.4), then put back any stroke that was being written when the app
+ * was killed.
+ */
+export const ready = () => (booted ??= prepareOpen(dbName(), DB_VERSION, noBackupYet).then(replayRecovery));
 
 /**
  * Each recovery record is the stroke in progress when the app died, with everything needed to

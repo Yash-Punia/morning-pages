@@ -78,6 +78,8 @@ export class JournalDB extends Dexie {
 let current: JournalDB | undefined;
 let name = DB_NAME;
 
+export const dbName = () => name;
+
 /** The open journal database. */
 export const db = () => (current ??= new JournalDB(name));
 
