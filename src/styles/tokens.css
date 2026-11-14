@@ -1,0 +1,69 @@
+/*
+ * Morning Pages design tokens. The world: a well-made paper notebook (PRD 10.3, PRODUCT.md).
+ * Colour tokens are light-dark(<Paper>, <Night>); themes.css picks the scheme.
+ * Anchors from the PRD: paper #F7F3EA, ink #1E2A3A, terracotta #C2653A, Night #1B1C1E.
+ */
+:root {
+  /* Paper and binding */
+  --paper: light-dark(oklch(96.5% 0.013 86.8), oklch(22.6% 0.004 264.5));
+  --linen: light-dark(oklch(92.4% 0.02 80), oklch(26.4% 0.007 70));          /* the cloth spine: rail, tab bar */
+  --linen-deep: light-dark(oklch(88.6% 0.025 78), oklch(31% 0.009 70));      /* pressed and current spine entries */
+
+  /* Ink */
+  --ink: light-dark(oklch(28.2% 0.034 255.8), oklch(92.4% 0.016 86));
+  --ink-soft: light-dark(oklch(44.5% 0.03 255), oklch(76.5% 0.02 84));       /* secondary text, never grey */
+  --rule: light-dark(oklch(28.2% 0.034 255.8 / 0.16), oklch(92.4% 0.016 86 / 0.14));
+  --stitch: light-dark(oklch(28.2% 0.034 255.8 / 0.32), oklch(92.4% 0.016 86 / 0.26)); /* the spine's binding stitch */
+
+  /* The one current or primary thing; sage only for "saved" */
+  --accent: light-dark(oklch(60.8% 0.132 44.2), oklch(68.5% 0.12 46));
+  --accent-ink: light-dark(oklch(49.5% 0.13 41), oklch(75% 0.11 50));        /* terracotta as text or icon */
+  --sage: light-dark(oklch(54% 0.065 150), oklch(73% 0.065 150));
+  --selection: light-dark(oklch(60.8% 0.132 44.2 / 0.22), oklch(68.5% 0.12 46 / 0.3));
+
+  /* Type. 1rem is the iOS body size (17 px by default) and follows Dynamic Type (base.css). */
+  --font-ui: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-date: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --text-xs: 0.765rem;    /* 13 */
+  --text-sm: 0.882rem;    /* 15 */
+  --text-md: 1rem;        /* 17, body */
+  --text-lg: 1.235rem;    /* 21 */
+  --text-xl: 1.647rem;    /* 28 */
+  --text-date: clamp(2.1rem, 1.5rem + 2.2vw, 3rem);
+  --leading-ui: 1.4;
+  --leading-tight: 1.1;
+
+  /* Space: a 4 px step, generous between groups */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-pill: 999px;
+  --hairline: 1px;
+  --target: 44px;          /* minimum touch target (PRD 10.4) */
+  --rail-collapsed: 4.5rem;
+  --rail-open: 15rem;
+
+  /* Motion: under 200 ms, exponential ease-out (PRD 10.3) */
+  --dur-quick: 120ms;
+  --dur-base: 180ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Depth: only for things that float over the page (the tool pill, M2) */
+  --shadow-float: 0 6px 18px -6px oklch(28.2% 0.034 255.8 / 0.28), 0 1px 3px oklch(28.2% 0.034 255.8 / 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-quick: 0ms;
+    --dur-base: 0ms;
+  }
+}

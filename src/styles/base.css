@@ -1,0 +1,108 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 106.25%; /* 17 px where -apple-system-body is unknown */
+  font: -apple-system-body; /* iOS: the body size follows Dynamic Type (PRD 10.4) */
+  font-family: var(--font-ui);
+  line-height: var(--leading-ui);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  accent-color: var(--accent);
+  caret-color: var(--accent-ink);
+  scrollbar-color: var(--rule) transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: var(--text-md);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+::selection {
+  background: var(--selection);
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+  transition: text-decoration-color var(--dur-quick) var(--ease-out);
+}
+a:hover {
+  text-decoration-color: var(--accent);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Screens off the canvas: a page with margins, titles set like a notebook's headings. */
+.screen {
+  padding: max(var(--space-7), env(safe-area-inset-top)) max(var(--space-6), env(safe-area-inset-right)) var(--space-7)
+    max(var(--space-6), env(safe-area-inset-left));
+  max-width: 44rem;
+}
+.screen-title {
+  font-family: var(--font-date);
+  font-size: var(--text-xl);
+  font-weight: 560;
+  letter-spacing: -0.015em;
+}
+.screen-title + * {
+  margin-top: var(--space-4);
+}
+.lede {
+  color: var(--ink-soft);
+  max-width: 60ch;
+}
+@media (max-width: 599.98px) {
+  .screen {
+    padding: max(var(--space-6), env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right)) var(--space-6)
+      max(var(--space-4), env(safe-area-inset-left));
+  }
+}
+
+/* Route changes: a quick cross-fade inside the 200 ms motion ceiling (PRD 10.3). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-out);
+}
+
+/* Times, dates and counts that line up */
+time,
+data {
+  font-variant-numeric: tabular-nums;
+}

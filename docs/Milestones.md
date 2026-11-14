@@ -62,6 +62,12 @@ Throwaway prototypes in `spikes/` (committed for the record, never shipped). Eac
 | 1.10 | Router + app layout (sidebar / tab bar), View Transitions, `/diagnostics` skeleton | §10.1 | `feat(shell): add router, layout and diagnostics route` | All MVP routes reachable; layout works at 320 px |
 | 1.11 | Umami site created (free Hobby); `analytics/` module: allowlist schema, `sanitize()`, production-host guard, opt-out flag, route-template page views, `app_open`, `install_detected`, `launch_perf`; CSP `connect-src` updated | TDD §9.4 | `feat(analytics): anonymous usage events via umami` | Events visible in Umami from the production host only; schema unit test passes; cross-origin `keepalive` POST works on iPad Safari (else drop `keepalive`) |
 
+**M1 result (2026-11-14):**
+- **CI:** all six jobs green on PR #2.
+- **iPad (owner):** the installed PR preview shows the "Morning Pages" label and icon and reopens in Airplane Mode.
+- **Umami:** the website was created and `VITE_UMAMI_WEBSITE_ID` is set for Production only.
+- **Not yet checked:** events arriving in Umami and the iPad `keepalive` POST. Both can only be checked after the merge deploys to `morning-pages-rose.vercel.app` (D-039).
+
 ### M2 · Ink core 🎨 · branch `m2-ink-core`
 
 | # | Feature | PRD | Commit | Done when |

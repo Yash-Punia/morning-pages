@@ -47,6 +47,8 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 | D-035 | 2026-11-13 | Defer spike S4 (handwriting recognition) to just before M13 | Accepted |
 | D-036 | 2026-11-14 | Ink input pipeline: dedupe, drop lift-off, 1€ filter, curved outline | Accepted |
 | D-037 | 2026-11-14 | Size canvases from their own box, never from `100vh` or `innerHeight` | Accepted |
+| D-038 | 2026-11-14 | Pin TypeScript 6, not 7, for the app | Accepted |
+| D-039 | 2026-11-14 | Interim production URL `morning-pages-rose.vercel.app` until a custom domain | Accepted |
 
 ---
 
@@ -311,6 +313,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - nothing is sent to a server.
 
   Spike S3 confirms that installed previews load.
+- **M1 result (2026-11-14): confirmed.** The `morning-pages` project has Vercel Authentication off for previews (`ssoProtection: null`, set through the API). A PR preview deployment URL returns 200 without a login, with the exact §11.2 headers and no Toolbar script.
 - **M0 result (2026-11-14): still open; verify in M1.5.** The spike project's first CLI deploy became production, so it had a public alias and protection never got in the way. Per-deployment URLs on that project redirect to Vercel login (302), which is exactly what this decision avoids for the real app. The Vercel Toolbar was not injected on the production alias.
 
 ### D-027 · The 400 KB budget covers launch-critical bytes, including fonts
@@ -450,6 +453,22 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 - **Decision:** Writing canvases use `position: fixed; inset: 0; width/height: 100%`. Backing pixels and the pointer origin come from `getBoundingClientRect()`, re-measured with a `ResizeObserver`. Page coordinates are `clientX − rect.left − pan`.
 - **Alternatives:** `100dvh`. That still relies on viewport-unit behaviour, and `ResizeObserver` covers every case.
 - **Consequences:** Exact 1:1 ink under the nib, confirmed by the owner. The M2.5 test checks this with the toolbars shown and hidden.
+
+### D-038 · Pin TypeScript 6, not 7, for the app
+
+- **Date:** 2026-11-14 · **Status:** Accepted
+- **Context:** TypeScript 7 (the native port) is current and the spikes used it with plain `tsc`. The app type-checks Svelte files with `svelte-check` 4.7, whose peer range is TypeScript `^5 || ^6`, because it drives the JavaScript language-service API that TypeScript 7 does not ship.
+- **Decision:** Pin `typescript` 6.0.3 in the app. The tsconfig follows the official Svelte template (`allowArbitraryExtensions`, `allowJs`, `checkJs`, `moduleDetection: force`); without `allowJs`, `.svelte` imports fail to type-check.
+- **Alternatives:** TypeScript 7 without `svelte-check`, which would leave Svelte templates unchecked.
+- **Consequences:** Move to TypeScript 7 when `svelte-check` supports it. `checkJs` also type-checks the plain `.mjs` build scripts, so they carry JSDoc types.
+
+### D-039 · Interim production URL `morning-pages-rose.vercel.app` until a custom domain
+
+- **Date:** 2026-11-14 · **Status:** Accepted
+- **Context:** The owner chose a free `*.vercel.app` production URL for M1 to M5. `morning-pages.vercel.app` was already taken, so Vercel assigned `morning-pages-rose.vercel.app` to the new `morning-pages` project.
+- **Decision:** Production is `morning-pages-rose.vercel.app`, and `VITE_PRODUCTION_HOST` is set to it for Production only. Analytics send only from that host.
+- **Alternatives:** Buy a custom domain now; the owner deferred it.
+- **Consequences:** Only test data lives on this origin. The custom domain is still required before the M6 dogfood (D-002, §11.3); moving then strands nothing real. When it changes, update `VITE_PRODUCTION_HOST` and the Umami website's domain.
 
 ---
 

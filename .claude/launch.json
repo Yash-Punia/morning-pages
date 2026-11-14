@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "app",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort", "--mode", "http"],
+      "port": 5173,
+      "url": "http://localhost:5173"
+    },
+    {
+      "name": "app-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "preview", "--mode", "http", "--port", "4173", "--strictPort"],
+      "port": 4173,
+      "url": "http://localhost:4173"
+    },
+    {
+      "name": "spikes",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "spikes", "run", "dev", "--", "--port", "5174", "--strictPort", "--mode", "http"],
+      "port": 5174,
+      "url": "http://localhost:5174"
+    }
+  ]
+}

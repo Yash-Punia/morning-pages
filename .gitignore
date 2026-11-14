@@ -3,3 +3,12 @@ dist/
 .vercel/
 # Real handwriting pages from the owner: never commit (public repo)
 spikes/samples/
+# Local-only Claude Code settings
+.claude/settings.local.json
+# Test output
+test-results/
+playwright-report/
+.vitest/
+.env*
+# Impeccable engine binary: downloaded and checksum-verified by the launcher on first use
+.claude/skills/impeccable/scripts/bin/
