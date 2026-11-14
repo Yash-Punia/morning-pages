@@ -35,6 +35,23 @@ export const fingerDrawing = {
   set: (on: boolean) => write('mp.ink.finger', on ? 'on' : 'off'),
 };
 
+/**
+ * Where each recently open entry was scrolled to (PRD 3, step 7): reopening lands on the same
+ * page. A view preference, safe to lose; only the last few entries are kept.
+ */
+export const scrollPos = {
+  get(entryId: string): number {
+    try { return (JSON.parse(read('mp.scroll') ?? '{}') as Record<string, number>)[entryId] ?? 0; } catch { return 0; }
+  },
+  set(entryId: string, y: number) {
+    let all: Record<string, number> = {};
+    try { all = JSON.parse(read('mp.scroll') ?? '{}'); } catch { /* start over */ }
+    delete all[entryId];
+    all[entryId] = Math.round(y); // most recent last
+    write('mp.scroll', JSON.stringify(Object.fromEntries(Object.entries(all).slice(-10))));
+  },
+};
+
 /** Paper for new pages (PRD 4.4); the owner's default is lined, college. */
 export const inkPaper = choice<PaperStyle>(
   'mp.ink.paper',

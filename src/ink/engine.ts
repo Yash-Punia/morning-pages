@@ -1,7 +1,7 @@
 // Wires the writing surface together: sizing, iOS suppression, input, gestures, rendering.
 // Plain TS outside Svelte reactivity (TDD 3). Two layers: `committed` composites cached tiles of
 // finished ink; `live` redraws only the stroke in progress (and its predicted tail) each frame.
-import { fingerDrawing, inkSmoothing } from '../settings.ts';
+import { fingerDrawing, inkSmoothing, scrollPos } from '../settings.ts';
 import { drawPaper, SIDE, TITLE } from './paper.ts';
 import { resolveToken, watchTheme } from './colors.ts';
 import { Gestures } from './gestures.ts';
@@ -95,6 +95,11 @@ export class InkEngine {
     Promise.all([document.fonts.load('520 36px "Fraunces Variable"'), document.fonts.load('400 18px "Atkinson Hyperlegible Next Variable"')])
       .then(() => { this.tiles.drop(); this.invalidate(true); }, () => {});
     this.resize();
+    // Reopening lands where the writer left off (PRD 3, step 7).
+    this.view.sy = scrollPos.get(doc.entry.id);
+    this.view.clamp();
+    this.off.push(() => this.saveScroll());
+    this.listen(window, 'pagehide', () => this.saveScroll());
     if (import.meta.env.VITE_E2E === '1') (window as unknown as { __ink: InkEngine }).__ink = this;
   }
 
@@ -302,8 +307,18 @@ export class InkEngine {
     const d = this.host.dataset; // readable state for tests and /diagnostics
     const v = this.view;
     const state = { scrollY: v.sy.toFixed(1), zoom: v.zoom.toFixed(3), pages: String(this.doc.pages.length), strokes: String(this.doc.strokeCount) };
+    if (d.scrollY !== state.scrollY) {
+      clearTimeout(this.scrollTimer);
+      this.scrollTimer = setTimeout(this.saveScroll, 400); // once scrolling settles
+    }
     for (const [k, val] of Object.entries(state)) if (d[k] !== val) d[k] = val;
   }
+
+  private scrollTimer: ReturnType<typeof setTimeout> | undefined;
+  private saveScroll = () => {
+    clearTimeout(this.scrollTimer);
+    scrollPos.set(this.doc.entry.id, this.view.sy);
+  };
 
   /** Keep page 1's title field on its band of paper as the page scrolls (CSSOM, so CSP-safe). */
   private placeTitle() {

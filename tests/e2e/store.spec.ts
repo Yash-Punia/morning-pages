@@ -116,3 +116,18 @@ test('a stroke shorter than 250 ms is covered too: it is mirrored from its first
   await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '2');
   expect(await count(page, 'recovery')).toBe(0);
 });
+
+test('reopening lands on the same place, with the same pen (PRD 3, step 7)', async ({ page }) => {
+  const ink = page.locator('[data-ink]');
+  await drag(page, 'pen', { x: 200, y: 400 }, { x: 400, y: 400 }); // page 2 appears: room to scroll
+  await page.getByRole('button', { name: /Fountain pen, Blue-black/ }).click();
+  await page.waitForTimeout(600); // past the palm guard
+  await drag(page, 'touch', { x: 500, y: 1100 }, { x: 500, y: 500 }, { steps: 6 });
+  await page.waitForTimeout(1500); // inertia settles and the position is saved
+  const y = Number(await ink.getAttribute('data-scroll-y'));
+  expect(y).toBeGreaterThan(300);
+  await page.reload();
+  await frame(page);
+  expect(Math.abs(Number(await ink.getAttribute('data-scroll-y')) - y)).toBeLessThan(1);
+  await expect(page.getByRole('button', { name: /Fountain pen, Blue-black/ })).toHaveAttribute('aria-pressed', 'true');
+});
