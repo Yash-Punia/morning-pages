@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { drag, frame } from './ink-helpers.ts';
 
 test.describe('writing surface', () => {
   test('suppresses iOS selection, callout and native gestures (PEN-2)', async ({ page }) => {
@@ -24,5 +25,25 @@ test.describe('writing surface', () => {
       expect(r.h).toBe(r.bh);
       expect(r.scroll).toBeLessThanOrEqual(r.vh); // Today never scrolls the document; the canvas scrolls itself
     }
+  });
+
+  test('one finger scrolls the page (D-007)', async ({ page }) => {
+    await page.goto('/today');
+    const ink = page.locator('[data-ink]');
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-scroll-y', '0.0');
+    await drag(page, 'touch', { x: 400, y: 700 }, { x: 400, y: 300 });
+    await frame(page);
+    expect(Number(await ink.getAttribute('data-scroll-y'))).toBeGreaterThan(300);
+  });
+
+  test('a trackpad pinch (ctrl + wheel) zooms', async ({ page }) => {
+    await page.goto('/today');
+    await page.locator('[data-ink]').hover();
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -100);
+    await page.keyboard.up('Control');
+    await frame(page);
+    expect(Number(await page.locator('[data-ink]').getAttribute('data-zoom'))).toBeGreaterThan(1);
   });
 });
