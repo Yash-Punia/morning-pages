@@ -12,8 +12,8 @@ test('app boots with no errors, no CSP violations and no third-party requests', 
     addEventListener('securitypolicyviolation', (e) => w.__csp.push(`${e.violatedDirective} ${e.blockedURI}`));
   });
 
-  await page.goto('/');
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await page.goto('/'); // a first visit: onboarding
+  await expect(page.getByRole('heading', { level: 1, name: 'Your journal stays on this iPad' })).toBeVisible();
 
   // Self-hosted fonts (D-012, PRI-3): both faces load from our own origin.
   const fonts = await page.evaluate(async () => {

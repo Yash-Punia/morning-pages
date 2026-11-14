@@ -10,6 +10,12 @@ const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } ca
 export const analyticsAllowed = () => read('mp.analytics') !== 'off';
 export const setAnalyticsAllowed = (on: boolean) => write('mp.analytics', on ? 'on' : 'off');
 
+/** First run is done in this storage container (a Safari tab and the installed app each have their own). */
+export const onboarded = {
+  get: () => read('mp.onboarded') === '1',
+  set: () => write('mp.onboarded', '1'),
+};
+
 /** Once-only markers for install_detected and the daily launch_perf event. */
 export const once = (key: string, value = '1') => {
   if (read(`mp.once.${key}`) === value) return false;

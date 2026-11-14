@@ -27,9 +27,26 @@ for (const [width, height] of [[1366, 1024], [320, 640]] as const) {
   });
 }
 
-test('/ goes to today, unknown paths fall back to it, and links navigate in place', async ({ page }) => {
+test('the first launch shows onboarding; after that / opens today, with no dialogs (4.3)', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await page.evaluate(() => localStorage.setItem('mp.onboarded', '1'));
   await page.goto('/');
   await expect(page).toHaveURL(/\/today$/);
+  await expect(page.locator('[data-ink]')).toBeVisible();
+});
+
+test('a journal written before onboarding existed opens straight to today', async ({ page }) => {
+  await page.goto('/today');
+  await page.evaluate(async () => {
+    const { db } = (window as unknown as { __store: { db(): { entries: { add(r: object): Promise<unknown> } } } }).__store;
+    await db().entries.add({ id: 'old', journalId: 'default', entryDate: '2026-11-01', createdAt: 1, updatedAt: 1 });
+  });
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/today$/);
+});
+
+test('unknown paths fall back to today, and links navigate in place', async ({ page }) => {
   await page.goto('/no-such-page');
   await expect(page).toHaveURL(/\/today$/);
 
