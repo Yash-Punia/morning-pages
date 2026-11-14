@@ -10,7 +10,9 @@
   // Every saved morning, newest first, read once pending writes are on disk (owner decision, M3).
   // M4 replaces this list with the full Library: calendar, timeline and banners.
   const today = localDate(new Date());
-  const rows = saved().then(() => listEntries(db()));
+  // Wait at most a second: while writes are held (TDD 6.2) the queue never empties, and the list
+  // must still show what is on disk.
+  const rows = Promise.race([saved(), new Promise((r) => setTimeout(r, 1000))]).then(() => listEntries(db()));
   const longDate = (d: string) => new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(fromLocalDate(d));
 </script>
 
@@ -38,6 +40,8 @@
     {:else}
       <p class="lede">Your past mornings will gather here, one page at a time.</p>
     {/if}
+  {:catch}
+    <p class="lede">This iPad couldn't read the journal just now. Close the app and open it again.</p>
   {/await}
 </section>
 

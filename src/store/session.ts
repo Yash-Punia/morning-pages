@@ -108,7 +108,9 @@ let booted: Promise<void> | undefined;
  * schema is upgraded (TDD 7.4), then put back any stroke that was being written when the app
  * was killed.
  */
-export const ready = () => (booted ??= prepareOpen(dbName(), DB_VERSION, noBackupYet).then(replayRecovery));
+// ponytail: a failed version probe is ignored (a WebKit connection blip must not lock the journal
+// for the session); fine while no v2 exists. M5 must handle it once a real migration ships.
+export const ready = () => (booted ??= prepareOpen(dbName(), DB_VERSION, noBackupYet).catch(() => null).then(replayRecovery));
 
 /**
  * Each recovery record is the stroke in progress when the app died, with everything needed to

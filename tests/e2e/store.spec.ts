@@ -131,3 +131,14 @@ test('reopening lands on the same place, with the same pen (PRD 3, step 7)', asy
   expect(Math.abs(Number(await ink.getAttribute('data-scroll-y')) - y)).toBeLessThan(1);
   await expect(page.getByRole('button', { name: /Fountain pen, Blue-black/ })).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('the Library still lists saved mornings while a write is held (TDD 6.2)', async ({ page }) => {
+  await page.getByRole('textbox', { name: 'Entry title' }).fill('Held morning');
+  await page.evaluate(async () => {
+    const s = (window as unknown as { __store: { saved(): Promise<void>; writes: { push(j: object): Promise<void> } } }).__store;
+    await s.saved(); // the title is on disk
+    void s.writes.push({ run: () => new Promise(() => {}) }); // a write that never completes
+  });
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page.getByRole('link', { name: /Held morning/ })).toBeVisible();
+});
