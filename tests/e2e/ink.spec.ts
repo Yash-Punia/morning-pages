@@ -61,7 +61,6 @@ test.describe('writing surface', () => {
       type Engine = { doc: { addPage(): void; addStroke(pts: number[][], t: string, c: string, s: number): void; pages: unknown[] }; view: { panBy(x: number, y: number): void; sy: number }; invalidate(c: boolean): void };
       const ink = (window as unknown as { __ink: Engine }).__ink;
       for (let p = 0; p < 50; p++) {
-        if (p) ink.doc.addPage();
         const top = p * (1414 + 24);
         for (let line = 0; line < 20; line++) {
           const y = top + 160 + line * 60;
@@ -88,11 +87,13 @@ test.describe('writing surface', () => {
         maxTiles = Math.max(maxTiles, engine.tiles.size);
       }
       paints.sort((a, b) => a - b);
-      (ink as unknown as { invalidate(c: boolean): void }).invalidate(true); // show where we ended up
+      const sy = ink.view.sy;
+      ink.view.panBy(0, 1300); // up from the fresh last page to the last written one
+      (ink as unknown as { invalidate(c: boolean): void }).invalidate(true);
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      return { pages: ink.doc.pages.length, sy: ink.view.sy, paints: paints.length, p95: paints[Math.floor(paints.length * 0.95)]!, maxPaintsPerStep, maxTiles };
+      return { pages: ink.doc.pages.length, sy, paints: paints.length, p95: paints[Math.floor(paints.length * 0.95)]!, maxPaintsPerStep, maxTiles };
     });
-    expect(stats.pages).toBe(50);
+    expect(stats.pages).toBe(51); // 50 written pages plus the fresh one waiting below
     expect(stats.sy).toBeGreaterThan(49 * 1438 - 2000); // reached the last page
     expect(stats.maxPaintsPerStep).toBeLessThanOrEqual(4); // a new row of tiles, never the document
     expect(stats.paints).toBeLessThan(400); // ~2 columns × ~140 rows, each painted once
@@ -120,6 +121,25 @@ test.describe('writing surface', () => {
     });
     expect(tiles.size).toBeLessThanOrEqual(24);
     expect(tiles.usedPixels).toBeLessThanOrEqual(24 * 1024 * 1024);
+  });
+
+  test('writing on the last page adds the next one, and it can be scrolled to and written on', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 1366 });
+    await page.goto('/today');
+    const ink = page.locator('[data-ink]');
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-pages', '1');
+    await drag(page, 'pen', { x: 200, y: 400 }, { x: 400, y: 400 });
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-pages', '2');
+    await page.waitForTimeout(600); // fingers right after the pen are a resting palm (500 ms guard)
+    for (let i = 0; i < 3; i++) await drag(page, 'touch', { x: 500, y: 1200 }, { x: 500, y: 700 }, { steps: 6 }); // scroll ~1500 px
+    await page.waitForTimeout(1500); // let inertia settle
+    await frame(page);
+    await drag(page, 'pen', { x: 200, y: 900 }, { x: 400, y: 900 });
+    await frame(page);
+    await expect(ink).toHaveAttribute('data-pages', '3'); // wrote on page 2
+    await expect(page.getByText('Practice page · not saved yet')).toBeVisible();
   });
 
   test('one finger scrolls the page (D-007)', async ({ page }) => {

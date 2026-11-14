@@ -64,6 +64,12 @@ export class InkDoc {
     this.ops.push(op);
     this.visible.set(op.id, op);
     this.onChange(this.docBox(op), op);
+    // Continuous scroll (PRD 4.4): writing on the last page puts a fresh page below it.
+    if (page.index === this.pages.length - 1) {
+      const next = this.addPage();
+      const nextTop = this.pageTop(next);
+      this.onChange([0, nextTop - PAGE_GAP, PAGE_WIDTH, nextTop + next.height]);
+    }
     return op;
   }
 

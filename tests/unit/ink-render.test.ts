@@ -55,16 +55,26 @@ describe('InkDoc and fold', () => {
     const doc = new InkDoc('lined-college');
     doc.addPage();
     const top2 = A5_HEIGHT + PAGE_GAP;
+    expect(doc.pages).toHaveLength(2);
     const op = doc.addStroke(pts(top2 + 300), 'fountain', 'blueBlack', 5);
     expect(op.pageId).toBe(doc.pages[1]!.id);
     expect(op.pts[0]![1]).toBeCloseTo(300);
     expect(doc.docBox(op)[1]).toBeCloseTo(top2 + 300 - 7.5);
   });
 
+  test('writing on the last page appends the next one; earlier pages do not (PRD 4.4)', () => {
+    const doc = new InkDoc('lined-college');
+    expect(doc.pages).toHaveLength(1);
+    doc.addStroke(pts(400), 'fountain', 'black', 5);
+    expect(doc.pages).toHaveLength(2);
+    expect(doc.pages[1]!.paper).toBe('lined-college');
+    doc.addStroke(pts(500), 'fountain', 'black', 5); // page 1 again: no new page
+    expect(doc.pages).toHaveLength(2);
+  });
+
   test('seq counts per page', () => {
     const doc = new InkDoc('blank');
-    doc.addPage();
-    const a = doc.addStroke(pts(100), 'fountain', 'black', 5);
+    const a = doc.addStroke(pts(100), 'fountain', 'black', 5); // appends page 2
     const b = doc.addStroke(pts(A5_HEIGHT + PAGE_GAP + 100), 'fountain', 'black', 5);
     const c = doc.addStroke(pts(200), 'fountain', 'black', 5);
     expect([a.seq, b.seq, c.seq]).toEqual([1, 1, 2]);
