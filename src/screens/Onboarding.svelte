@@ -13,13 +13,18 @@
   let { params: _ }: { params: Params } = $props();
 
   const first = Number(new URLSearchParams(location.search).get('step'));
-  let step = $state(first === 2 || first === 3 ? first : 1);
+  const initial: 1 | 2 | 3 = first === 2 || first === 3 ? first : 1;
+  let step = $state(initial);
   const installed = isInstalled();
 
-  $effect(() => {
-    track('onboarding_step', { step: String(step) as '1' | '2' | '3' });
-    history.replaceState(null, '', step === 1 ? '/onboarding' : `/onboarding?step=${step}`);
-  });
+  // Counted and kept in the URL as each screen is shown (in the handler, not an effect, so nothing
+  // can rewrite the URL after leaving for Today).
+  function show(n: 1 | 2 | 3) {
+    step = n;
+    track('onboarding_step', { step: String(n) as '1' | '2' | '3' });
+    history.replaceState(null, '', n === 1 ? '/onboarding' : `/onboarding?step=${n}`);
+  }
+  track('onboarding_step', { step: String(initial) as '1' | '2' | '3' });
 
   let paper = $state<PaperStyle>(inkPaper.get());
   let pen = $state<'ballpoint' | 'fountain'>('ballpoint');
@@ -59,7 +64,7 @@
     <p class="lede">Every page you write is kept on this device. There's no account, and nothing you write is ever uploaded.</p>
     <p class="note">To learn what to improve, the app counts a few anonymous things, like which screens open. You can switch that off in Settings.</p>
     <div class="actions">
-      <button class="primary" type="button" onclick={() => (step = 2)}>Next</button>
+      <button class="primary" type="button" onclick={() => show(2)}>Next</button>
       <button class="skip" type="button" onclick={() => finish(true)}>Skip</button>
     </div>
   {:else if step === 2}
@@ -77,7 +82,7 @@
     {/if}
     <p class="note">Deleting the app's icon deletes the journal with it.</p>
     <div class="actions">
-      <button class="primary" type="button" onclick={() => (step = 3)}>Next</button>
+      <button class="primary" type="button" onclick={() => show(3)}>Next</button>
       <button class="skip" type="button" onclick={() => finish(true)}>Skip</button>
     </div>
   {:else}

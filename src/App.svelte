@@ -1,6 +1,8 @@
 <script lang="ts">
   import { route } from './router.ts';
   import Icon, { type IconName } from './ui/Icon.svelte';
+  import TrialStrip from './ui/TrialStrip.svelte';
+  import { isInstalled } from './pwa/standalone.ts';
 
   // MVP destinations (PRD 10.1). Calendar, Timeline, Search and Insights join in v1.
   const NAV: { href: string; label: string; icon: IconName }[] = [
@@ -11,10 +13,12 @@
   const BARE = ['/onboarding']; // first run: no navigation yet
   const UNDER: Record<string, string> = { '/privacy': '/settings', '/diagnostics': '/settings' };
 
+  const trial = !isInstalled(); // STO-1: a Safari tab, not the Home Screen app
   let open = $state(false);
   const isCurrent = (href: string) => !!$route && (UNDER[$route.template] ?? $route.template) === href;
 </script>
 
+{#if trial && $route && !BARE.includes($route.template)}<TrialStrip />{/if}
 <div class="app" class:open>
   {#if $route && !BARE.includes($route.template)}
     <nav class="spine" aria-label="Main">
@@ -51,7 +55,7 @@
 
 <style>
   .app {
-    min-height: 100dvh;
+    min-height: calc(100dvh - var(--chrome-top, 0px));
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -60,7 +64,7 @@
   .spine {
     position: sticky;
     top: 0;
-    height: 100dvh;
+    height: calc(100dvh - var(--chrome-top, 0px));
     width: var(--rail-collapsed);
     display: flex;
     flex-direction: column;

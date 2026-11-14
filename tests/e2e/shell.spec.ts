@@ -58,3 +58,23 @@ test('unknown paths fall back to today, and links navigate in place', async ({ p
   await page.goBack();
   await expect(page).toHaveURL(/\/today$/);
 });
+
+test('in a Safari tab a quiet trial strip says pages are not kept long-term; the installed app has none (STO-1)', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 1024 });
+  await page.goto('/today');
+  const strip = page.getByRole('note').filter({ hasText: "Trial mode: pages in Safari aren't kept long-term." });
+  await expect(strip).toBeVisible();
+  // The writing page fits the window below the strip: nothing scrolls the window.
+  const fits = await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1);
+  expect(fits).toBe(true);
+  await strip.getByRole('link', { name: 'Add to Home Screen' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Add it to your Home Screen' })).toBeVisible();
+
+  await page.addInitScript(() => {
+    const real = window.matchMedia.bind(window);
+    window.matchMedia = (q: string) => (q.includes('display-mode: standalone') ? { ...real(q), matches: true } : real(q));
+  });
+  await page.goto('/today');
+  await expect(page.locator('[data-ink]')).toBeVisible();
+  await expect(page.getByText('Trial mode')).toHaveCount(0);
+});

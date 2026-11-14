@@ -39,7 +39,7 @@
   .today {
     --gutter: 4.5rem;
     position: relative;
-    height: 100dvh;
+    height: calc(100dvh - var(--chrome-top, 0px)); /* minus the trial strip in Safari tabs */
     display: grid;
     grid-template: 'paper' 1fr / 1fr;
     background: var(--linen);
@@ -106,7 +106,7 @@
   }
   @media (max-width: 899.98px) {
     .today {
-      height: calc(100dvh - var(--tabbar-h));
+      height: calc(100dvh - var(--chrome-top, 0px) - var(--tabbar-h));
     }
   }
 </style>
