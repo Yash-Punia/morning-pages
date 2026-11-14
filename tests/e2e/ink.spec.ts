@@ -186,6 +186,24 @@ test.describe('writing surface', () => {
     await expect(ink).toHaveAttribute('data-strokes', '2');
   });
 
+  test('a hovering Pencil shows a ghost nib that leaves no ink (PEN-8)', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 1366 });
+    await page.goto('/today');
+    await frame(page);
+    const liveAlpha = () => page.evaluate(() => {
+      const c = document.querySelectorAll<HTMLCanvasElement>('[data-ink] canvas')[1]!;
+      const k = c.width / c.getBoundingClientRect().width;
+      return c.getContext('2d')!.getImageData(Math.round(400 * k), Math.round(500 * k), 1, 1).data[3];
+    });
+    await drag(page, 'pen', { x: 380, y: 500 }, { x: 400, y: 500 }, { hover: true });
+    await frame(page);
+    expect(await liveAlpha()).toBeGreaterThan(0); // the ghost nib is under the pointer
+    await expect(page.locator('[data-ink]')).toHaveAttribute('data-strokes', '0'); // hovering never inks
+    await page.locator('[data-ink]').dispatchEvent('pointerleave');
+    await frame(page);
+    expect(await liveAlpha()).toBe(0); // gone when the Pencil moves away
+  });
+
   test('one finger scrolls the page (D-007)', async ({ page }) => {
     await page.goto('/today');
     const ink = page.locator('[data-ink]');

@@ -37,6 +37,7 @@ export class InkEngine {
   private dpr = 1;
   private stroke: Live | null = null;
   private erasing: Erasing | null = null;
+  private hover: [number, number] | null = null; // PEN-8: Pencil hovering above the glass
   /** What the Pencil does: write with the preset, or erase whole strokes (TDD 5.6). */
   mode: Mode = 'pen';
   private smoothing = inkSmoothing.get();
@@ -70,6 +71,7 @@ export class InkEngine {
     for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) this.listen(host, t, (e) => this.onUp(e as PointerEvent));
     this.listen(host, 'wheel', (e) => this.onWheel(e as WheelEvent), { passive: false });
     this.listen(window, 'keydown', (e) => this.onKey(e as KeyboardEvent));
+    this.listen(host, 'pointerleave', () => { if (this.hover) { this.hover = null; this.invalidate(); } });
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -116,7 +118,10 @@ export class InkEngine {
 
   private onMove(e: PointerEvent) {
     if (e.pointerType === 'touch') this.gestures.move(e.pointerId, ...this.local(e), e.timeStamp);
-    else if (e.pointerType === 'pen' && this.erasing && e.pointerId === this.erasing.pointerId) {
+    else if (e.pointerType === 'pen' && !this.stroke && !this.erasing && e.buttons === 0) {
+      this.hover = this.toDoc(e.clientX, e.clientY); // PEN-8: a ghost nib before contact
+      this.invalidate();
+    } else if (e.pointerType === 'pen' && this.erasing && e.pointerId === this.erasing.pointerId) {
       for (const c of coalesced(e)) this.eraseAt(this.toDoc(c.clientX, c.clientY));
     } else if (e.pointerType === 'pen' && this.stroke && e.pointerId === this.stroke.pointerId) {
       // Compare the parent event's id only: Safari 18.2 coalesced events carry wrong ids (TDD 15).
@@ -133,6 +138,7 @@ export class InkEngine {
   }
 
   private penDown(e: PointerEvent) {
+    this.hover = null;
     this.gestures.penStart();
     try { this.host.setPointerCapture(e.pointerId); } catch { /* synthetic or already-released pointers */ }
     if (this.mode === 'eraser') {
@@ -310,14 +316,22 @@ export class InkEngine {
     const { scale, sx, sy } = this.view;
     const k = scale * this.dpr;
     ctx.setTransform(k, 0, 0, k, -sx * k, -sy * k);
-    if (this.erasing) {
-      // The eraser's reach, as a quiet ring under the nib.
-      const [x, y] = this.erasing.at;
+    const ring = this.erasing?.at ?? (this.mode === 'eraser' ? this.hover : null);
+    if (ring) {
+      // The eraser's reach, as a quiet ring under the nib (while erasing, or hovering to erase).
       ctx.strokeStyle = resolveToken('--ink-soft');
       ctx.lineWidth = 1.5 / scale;
       ctx.beginPath();
-      ctx.arc(x, y, ERASER_RADIUS / Math.min(1, this.view.zoom), 0, Math.PI * 2);
+      ctx.arc(ring[0], ring[1], ERASER_RADIUS / Math.min(1, this.view.zoom), 0, Math.PI * 2);
       ctx.stroke();
+    } else if (this.hover) {
+      // PEN-8: a ghost of the nib in the preset's ink and size, before it touches the glass.
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = inkColor(this.preset.color);
+      ctx.beginPath();
+      ctx.arc(this.hover[0], this.hover[1], Math.max(1.5, this.preset.size * 0.55), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
     const s = this.stroke;
     if (!s) return;
