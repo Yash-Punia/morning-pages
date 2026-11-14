@@ -2,7 +2,7 @@
 // Plain TS outside Svelte reactivity (TDD 3). Two layers: `committed` composites cached tiles of
 // finished ink; `live` redraws only the stroke in progress (and its predicted tail) each frame.
 import { fingerDrawing, inkPaper, inkSmoothing } from '../settings.ts';
-import { drawPaper } from './paper.ts';
+import { drawPaper, SIDE, TITLE } from './paper.ts';
 import { resolveToken, watchTheme } from './colors.ts';
 import { Gestures } from './gestures.ts';
 import { hits } from './hit.ts';
@@ -25,6 +25,7 @@ export class InkEngine {
   readonly view = new Viewport();
   readonly doc: InkDoc;
   private dateLabel: string;
+  private titleEl?: HTMLElement;
   preset: Preset = { tool: 'fountain', color: 'blueBlack', size: 5 };
   private tiles = new TileCache();
   private gestures: Gestures;
@@ -47,9 +48,10 @@ export class InkEngine {
     private host: HTMLElement,
     private committed: HTMLCanvasElement,
     private live: HTMLCanvasElement,
-    { doc, date }: { doc: InkDoc; date: Date },
+    { doc, date, title }: { doc: InkDoc; date: Date; title?: HTMLElement },
   ) {
     this.doc = doc;
+    this.titleEl = title;
     doc.setPaper(inkPaper.get()); // the Settings choice applies to today's pages too
     this.dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
     this.view.docHeight = this.doc.height;
@@ -269,13 +271,25 @@ export class InkEngine {
 
   private frame() {
     this.frameId = 0;
-    if (this.composite) this.drawCommitted();
+    if (this.composite) { this.drawCommitted(); this.placeTitle(); }
     this.composite = false;
     this.drawLive();
     const d = this.host.dataset; // readable state for tests and /diagnostics
     const v = this.view;
     const state = { scrollY: v.sy.toFixed(1), zoom: v.zoom.toFixed(3), pages: String(this.doc.pages.length), strokes: String(this.doc.strokeCount) };
     for (const [k, val] of Object.entries(state)) if (d[k] !== val) d[k] = val;
+  }
+
+  /** Keep page 1's title field on its band of paper as the page scrolls (CSSOM, so CSP-safe). */
+  private placeTitle() {
+    const el = this.titleEl;
+    if (!el) return;
+    const s = this.view.scale;
+    const [x, y] = this.view.toScreen(SIDE, TITLE.top);
+    el.style.transform = `translate(${x}px, ${y}px)`;
+    el.style.width = `${(PAGE_WIDTH - 2 * SIDE) * s}px`;
+    el.style.height = `${TITLE.height * s}px`;
+    el.style.fontSize = `${TITLE.font * s}px`;
   }
 
   /** The tiles covering the visible part of the document, painted on first use. */

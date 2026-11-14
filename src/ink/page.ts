@@ -28,6 +28,8 @@ export class InkDoc {
   private all = new Map<string, StrokeOp>(); // every stroke ever written, visible or not
   private undoStack: Step[] = []; // unlimited, per session (TDD 5.6)
   private redoStack: Step[] = [];
+  /** The entry's typed title (Entry.title, TDD 7.2); empty means untitled. */
+  title = '';
   /** Called with the document-space area that changed, and the stroke when one was added. */
   onChange: (box: Box, added?: StrokeOp) => void = () => {};
 

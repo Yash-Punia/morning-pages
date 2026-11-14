@@ -10,7 +10,10 @@ export const RULING: Record<'lined-narrow' | 'lined-college' | 'lined-wide', num
   'lined-wide': 8.7 * MM, // ≈ 59
 };
 export const GRID = 5 * MM; // dotted and grid: 5 mm ≈ 34 units
-export const HEADER = 120; // units reserved for the date band at the top of every page
+export const HEADER = 150; // units reserved for the title and date band at the top of every page
+/** Page 1's typed title: a Fraunces line in this band (page units: top, height, font size). */
+export const TITLE = { top: 34, height: 58, font: 40 };
+const DATE_BASELINE = 124;
 export const SIDE = 60; // left/right margin for the header text
 export const CORNELL = { cue: 0.3 * PAGE_WIDTH, summary: A5_HEIGHT - 280 };
 const BOTTOM = 40;
@@ -72,12 +75,13 @@ export function drawPaper(ctx: Ctx2D, style: PaperStyle, top: number, c: PaperCo
   ctx.stroke();
   if (style === 'dotted') for (const [x, y] of dots(height)) { ctx.beginPath(); ctx.arc(x, top + y, 1.4, 0, Math.PI * 2); ctx.fill(); }
 
-  // The printed date (PRD 4.4): lettered large on the first page, a small running head after.
+  // The printed date (PRD 4.4). Page 1: a quiet line under the entry's title (the title itself is
+  // a text field laid over the TITLE band). Later pages: a small running head with the page number.
   ctx.textBaseline = 'alphabetic';
   if (header.page === 1) {
-    ctx.fillStyle = c.ink;
-    ctx.font = '520 36px "Fraunces Variable", ui-serif, Georgia, serif';
-    ctx.fillText(header.date, SIDE, top + 78);
+    ctx.fillStyle = c.inkSoft;
+    ctx.font = '400 19px "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText(header.date, SIDE, top + DATE_BASELINE);
   } else {
     ctx.fillStyle = c.inkSoft;
     ctx.font = '400 18px "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif';
