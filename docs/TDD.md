@@ -181,14 +181,17 @@ canvas.addEventListener('lostpointercapture', onEnd);
 
 ### 5.3 Gestures
 
+Amended by D-042 (owner feedback, M2): a resting palm was read as gestures, so fingers only scroll.
+
 | Gesture | Action |
 | --- | --- |
 | 1 finger drag | Scroll (with inertia) |
-| 2 finger pinch / drag | Zoom (0.5×–4×) and pan |
-| 2 finger tap (< 250 ms, < 10 px travel) | Undo |
-| 3 finger tap | Redo |
-| Pen hover, no buttons | Ghost nib preview |
-| Long-press on toolbar tool | Radial preset menu |
+| A second contact, or a palm-sized one | Nothing: scrolling stops until every finger lifts |
+| 2 fingers, "Draw with finger" mode only | Scroll (one finger writes in that mode) |
+| Pen hover, no buttons | Ghost nib preview (round tip, or the fountain's slanted italic edge, D-043) |
+| Tap the active preset on the toolbar | Edit that preset (pen, ink, size) |
+
+No pinch zoom and no multi-finger undo/redo: undo is the toolbar or ⌘Z / ⇧⌘Z.
 
 ### 5.4 Stroke building
 
