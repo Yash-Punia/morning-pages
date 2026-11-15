@@ -13,4 +13,9 @@ export function startServiceWorker() {
 }
 
 /** Apply a waiting update and reload. Callers must make sure the write queue is empty first. */
-export const applyUpdate = () => update?.(true);
+export const applyUpdate = (): Promise<void> | undefined => {
+  // e2e builds record the call instead of reloading the page under test.
+  if (import.meta.env.VITE_E2E === '1') return void Object.assign(window, { __updateApplied: true }) as undefined;
+  return update?.(true);
+};
+if (import.meta.env.VITE_E2E === '1') Object.assign(window, { __pwa: { needRefresh } });

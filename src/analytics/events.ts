@@ -12,6 +12,8 @@ export const SCHEMA = {
   save_error: { kind: ['connection', 'quota', 'unknown'], recovered: [true, false] },
   persist_status: { granted: [true, false] },
   storage_warning: { pct: ['80', '95'] },
+  // TDD 9.4 lists the version; D-029 allows no free-text values, so this counts updates only.
+  update_applied: {},
 } as const satisfies Record<string, Record<string, readonly (string | boolean)[]>>;
 
 export type EventName = keyof typeof SCHEMA;
@@ -30,6 +32,7 @@ export const EVENT_DESCRIPTIONS: Record<EventName, string> = {
   save_error: 'That saving ran into a problem (a lost connection, full storage or something else), and whether it recovered.',
   persist_status: 'Whether iPadOS agreed to protect the app’s storage.',
   storage_warning: 'That storage passed 80 % or 95 % full.',
+  update_applied: 'That a new version of the app was installed.',
 };
 /** Page views carry only the screen's template, never which entry. */
 export const PAGE_VIEW_DESCRIPTION = 'Which screen opens, by its kind (like “Calendar” or “an entry”), never which entry.';

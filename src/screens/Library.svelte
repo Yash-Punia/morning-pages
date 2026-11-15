@@ -7,6 +7,18 @@
   import { localDate, saved } from '../store/session.ts';
   import { storage } from '../store/storage.ts';
   import { thumbsSettled } from '../store/thumbs.ts';
+  import { applyUpdate, needRefresh } from '../pwa/register.ts';
+  import { track } from '../analytics/track.ts';
+
+  // 4.12, PRD 10.2: an update is offered here only, never on the page, and applies only once
+  // everything written is on disk, so it can never land mid-write.
+  let updating = $state(false);
+  async function update() {
+    updating = true;
+    await saved();
+    track('update_applied');
+    await applyUpdate();
+  }
   import { dayDate, today, weekdayLetter, weekOf } from '../ui/dates.ts';
   import EntryRow from '../ui/EntryRow.svelte';
   let { params: _ }: { params: Params } = $props();
@@ -27,6 +39,12 @@
   <h1 id="library-title" class="screen-title">Library</h1>
 
   <div class="banners">
+    {#if $needRefresh}
+      <div class="banner update" role="status">
+        <p><strong>A new version is ready.</strong> {updating ? 'Updating once everything you’ve written is saved…' : 'It takes a moment and keeps every page.'}</p>
+        <button type="button" onclick={update} disabled={updating}>{updating ? 'Waiting…' : 'Update now'}</button>
+      </div>
+    {/if}
     {#if $storage.warn}
       <!-- TDD 6.5: from 80 % of the space the journal may use. -->
       <p class="banner" role="status"><strong>Storage nearly full.</strong> This iPad is {$storage.warn} % full for the journal. Free some space so new pages keep saving.</p>
@@ -95,6 +113,36 @@
   }
   .banner :global(strong) {
     color: var(--accent-ink);
+  }
+  .update {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .update p {
+    margin: 0;
+    flex: 1 1 18rem;
+  }
+  .update button {
+    min-height: var(--target);
+    padding: 0 var(--space-5);
+    border: 0;
+    border-radius: var(--radius-pill);
+    /* Secondary: Continue today is the one ink pill on this screen. */
+    background: none;
+    box-shadow: inset 0 0 0 1.5px var(--ink);
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .update button:disabled {
+    box-shadow: none;
+    background: var(--linen-deep);
+    color: var(--ink-soft);
+    cursor: default;
   }
 
   .today {
