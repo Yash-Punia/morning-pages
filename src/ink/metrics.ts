@@ -12,6 +12,7 @@ let sampleMs = 0;
 let hovered = false;
 let pending = -1;
 let lastFrame = 0;
+let firstInput = -1; // the earliest pen sample since the last frame
 /** The last few finger contacts and what scrolling made of them (D-042 calibration). */
 const touches: { contact: number; verdict: string; held: number }[] = [];
 
@@ -36,11 +37,19 @@ export const inkMetrics = {
     pending = eventTime;
     lastFrame = 0;
   },
-  /** Call after the live layer has been drawn for a frame while writing. */
+  /** A pen sample arrived (its event time). */
+  input(t: number) {
+    if (firstInput < 0 || t < firstInput) firstInput = t;
+  },
+  /** Call after the live layer has been drawn for a frame while writing. A gap only counts when
+   *  a sample was waiting since just after the last frame: the Pencil resting still sends
+   *  nothing, and that pause is not a dropped frame. */
   drawn(now = performance.now()) {
     if (pending >= 0) push(firstInk, now - pending);
     pending = -1;
-    if (lastFrame) {
+    const waiting = firstInput >= 0 && firstInput - lastFrame <= BOUNDS[1];
+    firstInput = -1;
+    if (lastFrame && waiting) {
       const d = now - lastFrame;
       push(deltas, d);
       writingMs += d;

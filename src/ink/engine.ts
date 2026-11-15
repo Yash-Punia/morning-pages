@@ -166,6 +166,7 @@ export class InkEngine {
   private extend(e: PointerEvent) {
     const s = this.stroke!;
     const pts = coalesced(e).map((c) => this.sample(c, s.finger));
+    inkMetrics.input(pts[0]![5]);
     appendSamples(s.pts, pts);
     s.last = [e.clientX, e.clientY];
     s.pred = s.finger ? [] : predicted(e, s.pts[s.pts.length - 1]![5], this.toDoc);

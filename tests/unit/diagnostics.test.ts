@@ -44,9 +44,12 @@ describe('writing metrics (TDD 5.7)', () => {
   test('dropped frames count the whole session, against the refresh rate', () => {
     inkMetrics.penDown(0);
     let t = 1000;
+    const frame = (dt: number) => { inkMetrics.input(t + 1); inkMetrics.drawn((t += dt)); };
     inkMetrics.drawn(t);
-    for (let i = 0; i < 99; i++) inkMetrics.drawn((t += 8.3)); // 120 Hz
-    inkMetrics.drawn((t += 30)); // one long frame
+    for (let i = 0; i < 99; i++) frame(8.3); // 120 Hz
+    frame(30); // one long frame, with a sample waiting since the frame before
+    inkMetrics.input(t + 400); // the Pencil rested still for 400 ms: a pause, not a dropped frame
+    inkMetrics.drawn((t += 401));
     inkMetrics.penUp(11, 100); // 10 intervals over 100 ms
     const s = inkMetrics.summary();
     expect(s.frames).toBe(100);

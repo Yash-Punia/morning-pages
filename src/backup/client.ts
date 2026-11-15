@@ -108,7 +108,8 @@ export async function restoreBackup(file: File, mode: RestoreMode, preview: Prev
   // The Library says what arrived, once (the end of the most anxious flow shouldn't be silent).
   try { sessionStorage.setItem(RESTORED, JSON.stringify({ mornings: preview.mornings, range: preview.dateRange })); } catch { /* no note, still restored */ }
   log('restore', `${mode} finished`);
-  await flushLog(); // the reload comes before the log's own write would
+  // The reload comes before the log's own write would. Never let it hold up the reload.
+  await Promise.race([flushLog(), new Promise((r) => setTimeout(r, 300))]);
   location.replace('/library');
 }
 
