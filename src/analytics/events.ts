@@ -15,6 +15,24 @@ export const SCHEMA = {
 } as const satisfies Record<string, Record<string, readonly (string | boolean)[]>>;
 
 export type EventName = keyof typeof SCHEMA;
+
+/**
+ * What each event tells, in the privacy page's words (PRI-7). Keyed by event, so an event can't
+ * be added without saying what it sends.
+ */
+export const EVENT_DESCRIPTIONS: Record<EventName, string> = {
+  app_open: 'That the app opened, from the Home Screen or in a Safari tab, and whether it was morning.',
+  install_detected: 'That the app was added to the Home Screen (once).',
+  launch_perf: 'How long the app took to open, in rough ranges (once a day).',
+  onboarding_step: 'Which first-run screen was reached: one, two or three.',
+  onboarding_done: 'That first-run setup was finished.',
+  entry_started: 'That a new entry was started, and whether with the pen, a finger or the keyboard.',
+  save_error: 'That saving ran into a problem (a lost connection, full storage or something else), and whether it recovered.',
+  persist_status: 'Whether iPadOS agreed to protect the app’s storage.',
+  storage_warning: 'That storage passed 80 % or 95 % full.',
+};
+/** Page views carry only the screen's template, never which entry. */
+export const PAGE_VIEW_DESCRIPTION = 'Which screen opens, by its kind (like “Calendar” or “an entry”), never which entry.';
 export type EventProps<E extends EventName> = { [K in keyof (typeof SCHEMA)[E]]: (typeof SCHEMA)[E][K] extends readonly (infer V)[] ? V : never };
 
 /** Keep only allowlisted keys whose value is one of that key's allowed values. */

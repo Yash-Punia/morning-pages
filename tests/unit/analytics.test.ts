@@ -36,3 +36,9 @@ test('durability events carry only their enums (TDD 9.4)', () => {
   expect(sanitize('storage_warning', { pct: '80', usage: 123456 })).toEqual({ pct: '80' });
   expect(sanitize('storage_warning', { pct: 81 })).toBeUndefined();
 });
+
+test('the privacy page describes every event that can be sent, and nothing else (PRI-7)', async () => {
+  const { EVENT_DESCRIPTIONS } = await import('../../src/analytics/events.ts');
+  expect(Object.keys(EVENT_DESCRIPTIONS).sort()).toEqual(Object.keys(SCHEMA).sort());
+  for (const text of Object.values(EVENT_DESCRIPTIONS)) expect(text.length).toBeGreaterThan(20);
+});
