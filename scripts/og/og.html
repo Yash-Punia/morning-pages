@@ -1,0 +1,57 @@
+<!doctype html>
+<!--
+  The Open Graph image (M4.15), 1200 × 630. Rendered to public/og.png by scripts/og/render.mjs.
+  Provenance: drawn here in HTML/SVG with the app's own tokens and self-hosted fonts. The ink is
+  synthetic SVG strokes, never the owner's handwriting (PRODUCT.md: their samples stay private).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: 'Fraunces'; src: url('../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; }
+  @font-face { font-family: 'Atkinson'; src: url('../../node_modules/@fontsource-variable/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-wght-normal.woff2') format('woff2'); font-weight: 200 800; }
+  :root {
+    --paper: #F7F3EA; --linen: #EAE2D4; --linen-deep: #E0D6C5; --ink: #1E2A3A; --ink-soft: #4E5A6A;
+    --rule: rgb(30 42 58 / 0.16); --stitch: rgb(30 42 58 / 0.32); --accent: #C2653A;
+  }
+  html, body { margin: 0; }
+  body { width: 1200px; height: 630px; overflow: hidden; background: var(--linen); font-family: 'Atkinson', sans-serif; color: var(--ink); }
+  .spine { position: absolute; inset: 0 auto 0 0; width: 64px; background: var(--linen-deep); }
+  .spine::after { content: ''; position: absolute; inset: 0 10px 0 auto; width: 1.5px; background: repeating-linear-gradient(to bottom, var(--stitch) 0 8px, transparent 8px 16px); }
+  .words { position: absolute; left: 128px; top: 150px; width: 560px; }
+  p { text-wrap: balance; }
+  .mark { display: block; margin-bottom: 28px; }
+  h1 { margin: 0; font-family: 'Fraunces', serif; font-weight: 520; font-size: 88px; line-height: 1; letter-spacing: -0.03em; }
+  p { margin: 28px 0 0; font-size: 30px; line-height: 1.35; color: var(--ink-soft); }
+  /* A real A5 page, tilted a touch, with ruled lines and a few lines of (synthetic) ink. */
+  .page { position: absolute; right: 120px; top: 70px; width: 360px; height: 509px; background: var(--paper); rotate: 3deg;
+    box-shadow: 0 18px 40px -14px rgb(30 42 58 / 0.35), 0 2px 6px rgb(30 42 58 / 0.12);
+    background-image: repeating-linear-gradient(to bottom, transparent 0 25px, var(--rule) 25px 26px); background-position: 0 70px; }
+  .page .date { position: absolute; left: 28px; top: 28px; font-family: 'Fraunces', serif; font-size: 22px; font-weight: 520; }
+  .page svg { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+  <div class="spine"></div>
+  <div class="words">
+    <svg class="mark" viewBox="0 0 32 32" width="64" height="64" aria-hidden="true">
+      <circle cx="22" cy="11" r="4" fill="#C2653A" />
+      <path d="M6 21c2.6-3.6 4.6-3.6 6.2-1s3.6 2.6 5.6-.5 4.1-3.1 6.7.5" fill="none" stroke="#1E2A3A" stroke-width="2.4" stroke-linecap="round" />
+    </svg>
+    <h1>Morning Pages</h1>
+    <p>A private, pen-first morning journal for iPad. Your pages never leave your device.</p>
+  </div>
+  <div class="page">
+    <div class="date">Sunday, 15 November</div>
+    <svg viewBox="0 0 360 509" width="360" height="509" aria-hidden="true">
+      <g fill="none" stroke="#1E2A3A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M30 118c10-10 16-12 20-4s8 8 14-2 10-10 16 0 8 8 16-4 12-6 18 2 10 6 16-2 14-8 22 0 8 6 18-2 14-6 22 2 10 4 20-2" />
+        <path d="M30 144c12-6 18-6 22 2s10 6 18-4 12-6 18 2 12 6 20-4 14-4 20 4 8 4 16-2 16-6 24 2 12 4 22-4" />
+        <path d="M30 170c8-8 14-8 18-2s8 8 16-2 10-8 16 0 10 6 18-4 14-6 20 2 12 4 18-4" />
+        <path d="M30 222c12-8 20-8 24 0s10 6 18-4 12-6 18 2 10 6 18-2 14-6 22 2 12 4 22-4 12-4 18 2" />
+        <path d="M30 248c10-6 16-6 20 2s8 6 16-4 12-6 18 2 10 4 18-4 12-4 20 4" />
+      </g>
+    </svg>
+  </div>
+</body>
+</html>

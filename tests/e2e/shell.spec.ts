@@ -78,3 +78,15 @@ test('in a Safari tab a quiet trial strip says pages are not kept long-term; the
   await expect(page.locator('[data-ink]')).toBeVisible();
   await expect(page.getByText('Trial mode')).toHaveCount(0);
 });
+
+test('a shared link shows the title, description and a 1200x630 image (4.15)', async ({ page, request }) => {
+  await page.goto('/today');
+  const meta = (sel: string) => page.locator(sel).getAttribute('content');
+  expect(await meta('meta[property="og:title"]')).toBe('Morning Pages');
+  expect(await meta('meta[property="og:description"]')).toMatch(/pen-first morning journal/);
+  expect(await meta('meta[property="og:image"]')).toMatch(/^https:\/\/.+\/og\.png$/);
+  expect(await meta('meta[name="twitter:card"]')).toBe('summary_large_image');
+  const png = await request.get('/og.png');
+  expect(png.status()).toBe(200);
+  expect(png.headers()['content-type']).toBe('image/png');
+});
