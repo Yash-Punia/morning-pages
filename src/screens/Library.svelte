@@ -112,7 +112,7 @@
     max-width: 40rem;
   }
   .banner :global(strong) {
-    color: var(--accent-ink);
+    color: var(--ink);
   }
   .update {
     display: flex;

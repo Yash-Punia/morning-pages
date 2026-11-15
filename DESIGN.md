@@ -150,7 +150,7 @@ Ink on warm paper, with two quiet signal colours. Every colour is a `light-dark(
 - **Binding Stitch** (`stitch`): the spine's dashed stitch at 32 % ink.
 
 ### Named Rules
-**The One Mark Rule.** At most one terracotta element marks "you are here" on a screen; terracotta is never decoration, a heading colour or a background field.
+**The One Mark Rule.** At most one terracotta element marks "you are here" on a screen (today's date, the current spine entry); terracotta is never decoration, a heading colour, a background field, a banner lead or an action such as Delete or Restore. The one exception protects writing: the held-writes banner's "Save a copy" and the saved dot's held ring.
 
 **The Tinted Neutral Rule.** Secondary text and lines are tints of ink, never grey; on linen and paper they must still clear 4.5:1 (checked by `tests/unit/contrast.test.ts`).
 
@@ -230,6 +230,24 @@ Gentle, small radii (6px small, 10px for interactive rows and spine entries) and
 
 ### Held-writes banner (M3)
 - **Style:** a Paper panel with the Float shadow and a 10px radius, at the foot of the page, one plain sentence and a Fired Terracotta pill button ("Save a copy"). It can't be dismissed and goes away by itself once the writes are on disk; the only banner ever allowed over the writing page, because it protects the writing.
+
+### Page thumbnails (M4)
+- **Style:** an entry's first page at true A5 proportions (1000:1414), square-cornered like the page, edged by a hairline ring in `rule`. The stored JPEG is drawn in the Paper theme; by night it shows inverted with its hue kept (`invert(0.88) hue-rotate(180deg)`), a charcoal page with light ink. Until a thumbnail exists, the paper's rulings are drawn in CSS.
+
+### Entry rows (M4)
+- **Style:** a list row (thumbnail, title in Atkinson 600 or "Untitled" in Faded Ink, date and page count in Body small) followed by a 44px "…" button. Titles are never Fraunces (The Lettered Date Rule).
+- **Menu:** a native popover under the button: a Paper panel, 10px radius, Float shadow, with Open and Delete in ink. Delete acts at once and leaves a ruled line in the row's place, "“Title” moved to Recently Deleted", with an underlined Undo.
+
+### Week strip and calendar (M4)
+- **Week strip:** seven days between two hairline rules: a Faded Ink weekday letter over a day number, a 6px ink dot where something was written. Today's number is the screen's one terracotta mark (Fired Terracotta, 2px underline).
+- **Calendar:** a ruled table of days (no cards): each day a full-cell button with its number and, if written, its newest page's thumbnail, "+1" when there are more; selected in Deep Linen. Below 480px a dot replaces the thumbnail. The selected day's entries sit below the grid under a lettered date.
+
+### Timeline (M4)
+- **Style:** month headings in Fraunces (Title size) held at the top of the screen while their ruled rows scroll; a native month picker labelled "Jump to"; the list ends with a Faded Ink "That's every morning since …".
+
+### Banners and the trial strip (M4)
+- **Banners (Library only):** a ruled note between hairlines, opening with a short bold lead in ink; an action is an outlined pill (1.5px ink ring), since the screen's primary pill is Continue today.
+- **Trial strip (Safari tabs only):** one fixed 2.75rem line in Deep Linen at the top of every screen but onboarding, Label size, with an underlined ink link. Layout below subtracts it in CSS (`:root:has(.trial)`).
 
 ### Definition rows (diagnostics)
 - **Style:** term in Faded Ink beside its value in ink with tabular numerals; stacks below 480 px.

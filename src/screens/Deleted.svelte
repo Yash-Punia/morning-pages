@@ -100,9 +100,11 @@
     border: 0;
     border-radius: var(--radius-md);
     background: none;
-    color: var(--accent-ink);
+    color: var(--ink);
     font: inherit;
     font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
     cursor: pointer;
   }
   .restore:hover {

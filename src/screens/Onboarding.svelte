@@ -146,7 +146,7 @@
   .inline-icon {
     display: inline-flex;
     vertical-align: -4px;
-    color: var(--accent-ink);
+    color: var(--ink);
   }
   .actions {
     display: flex;

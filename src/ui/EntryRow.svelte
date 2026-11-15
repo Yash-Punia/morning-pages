@@ -61,7 +61,7 @@
     </button>
     <div class="menu" id={menuId} popover="auto" bind:this={pop}>
       <a class="item" {href}>Open</a>
-      <button type="button" class="item danger" onclick={remove}>Delete</button>
+      <button type="button" class="item" onclick={remove}>Delete</button>
     </div>
   </li>
 {/if}
@@ -154,9 +154,6 @@
   .item:hover {
     background: color-mix(in oklch, var(--linen) 70%, transparent);
   }
-  .danger {
-    color: var(--accent-ink);
-  }
   .gone {
     justify-content: space-between;
     gap: var(--space-3);
@@ -178,9 +175,11 @@
     border: 0;
     border-radius: var(--radius-md);
     background: none;
-    color: var(--accent-ink);
+    color: var(--ink);
     font: inherit;
     font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
     cursor: pointer;
   }
 </style>

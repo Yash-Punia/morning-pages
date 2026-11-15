@@ -35,8 +35,10 @@
     display: inline-flex;
     align-items: center;
     height: 100%;
-    color: var(--accent-ink);
+    color: var(--ink);
     font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
   }
   /* Narrow windows: the short label shows; the full sentence stays for VoiceOver. */
   @media (max-width: 599.98px) {

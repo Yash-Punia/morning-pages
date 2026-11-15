@@ -48,13 +48,14 @@
     height: 100%;
     object-fit: cover;
   }
-  /* By night a cream page would glare: dim it a little, like paper under a lamp. */
+  /* By night, a cream page with dark ink becomes a charcoal page with light ink (the inverse,
+     hue kept), so stored pages sit with the night placeholders instead of glowing. */
   @media (prefers-color-scheme: dark) {
     :global(:root:not([data-theme='paper'])) img {
-      filter: brightness(0.82);
+      filter: invert(0.88) hue-rotate(180deg);
     }
   }
   :global(:root[data-theme='night']) img {
-    filter: brightness(0.82);
+    filter: invert(0.88) hue-rotate(180deg);
   }
 </style>
