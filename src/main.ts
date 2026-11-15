@@ -9,10 +9,11 @@ import { startServiceWorker } from './pwa/register.ts';
 import { isInstalled } from './pwa/standalone.ts';
 import { launchBucket } from './analytics/events.ts';
 import { pageView, track } from './analytics/track.ts';
-import { onboarded, once } from './settings.ts';
+import { applyTheme, onboarded, once } from './settings.ts';
 import { db } from './store/db.ts';
 import { checkStorage } from './store/storage.ts';
 
+applyTheme(); // before the first screen, so a pinned theme never flashes
 const app = mount(App, { target: document.getElementById('app')! });
 
 // ENT-1 / 4.3: a launch opens straight onto today's page, with no dialogs. Only the very first

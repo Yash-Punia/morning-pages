@@ -2,7 +2,8 @@
   import type { Params } from '../router.ts';
   import Icon from '../ui/Icon.svelte';
   import { version } from '../../package.json';
-  import { analyticsAllowed, fingerDrawing, inkPaper, inkSmoothing, setAnalyticsAllowed } from '../settings.ts';
+  import { analyticsAllowed, applyTheme, fingerDrawing, inkPaper, inkSmoothing, setAnalyticsAllowed, theme as themePref } from '../settings.ts';
+  import { checkStorage, storage } from '../store/storage.ts';
   import { PAPER_NAMES } from '../ink/paper.ts';
   let { params: _ }: { params: Params } = $props();
 
@@ -15,8 +16,15 @@
   const SMOOTHING_LABELS = { low: 'Low', medium: 'Medium', high: 'High' } as const;
   let finger = $state(fingerDrawing.get());
   $effect(() => fingerDrawing.set(finger));
+  let theme = $state(themePref.get());
+  $effect(() => { themePref.set(theme); applyTheme(theme); });
+  const THEME_LABELS = { system: 'Match the iPad', paper: 'Paper', night: 'Night' } as const;
+
+  void checkStorage(); // fresh numbers for this screen (STO-3, STO-4)
+  const mb = (n: number) => (n >= 1_073_741_824 ? `${(n / 1_073_741_824).toFixed(1)} GB` : `${Math.max(0.1, n / 1_048_576).toFixed(1)} MB`);
 
   const LINKS = [
+    { href: '/deleted', label: 'Recently Deleted', hint: 'Deleted mornings, kept for 30 days' },
     { href: '/privacy', label: 'Privacy', hint: 'What stays on this iPad' },
     { href: '/diagnostics', label: 'Diagnostics', hint: 'Storage, offline and version details' },
   ];
@@ -24,6 +32,28 @@
 
 <section class="screen" aria-labelledby="settings-title">
   <h1 id="settings-title" class="screen-title">Settings</h1>
+  <h2 id="storage">Storage</h2>
+  <!-- STO-3 / STO-4: how safe the journal is on this iPad, in plain words. -->
+  <ul aria-labelledby="storage">
+    <li class="row static">
+      <span class="text">
+        <span class="label">{$storage.persisted ? 'Storage: protected' : 'Storage: best effort'}</span>
+        <span class="hint">{$storage.persisted
+          ? 'iPadOS keeps this journal even when space runs low. Deleting the app still deletes it.'
+          : $storage.persisted === null
+            ? 'This browser doesn’t say whether it protects the journal. Back up regularly.'
+            : 'iPadOS may clear it when space runs low. Back up regularly; adding the app to the Home Screen helps.'}</span>
+      </span>
+    </li>
+    {#if $storage.quota}
+      <li class="row static">
+        <span class="text">
+          <span class="label">Space used</span>
+          <span class="hint">{mb($storage.usage)} of {mb($storage.quota)} the journal can use{$storage.warn ? ` · ${$storage.warn} % full` : ''}</span>
+        </span>
+      </li>
+    {/if}
+  </ul>
   <h2 id="writing">Writing</h2>
   <ul aria-labelledby="writing">
     <li>
@@ -56,7 +86,7 @@
       <label class="row">
         <span class="text">
           <span class="label">Draw with finger</span>
-          <span class="hint">For writing without a Pencil; two fingers scroll and zoom</span>
+          <span class="hint">For writing without a Pencil; two fingers scroll</span>
         </span>
         <input type="checkbox" role="switch" bind:checked={finger} />
       </label>
@@ -64,6 +94,19 @@
   </ul>
   <h2 id="app">This app</h2>
   <ul aria-labelledby="app">
+    <li>
+      <label class="row">
+        <span class="text">
+          <span class="label">Theme</span>
+          <span class="hint">Paper by day and Night in dark mode, or always one</span>
+        </span>
+        <select bind:value={theme}>
+          {#each themePref.values as t (t)}
+            <option value={t}>{THEME_LABELS[t]}</option>
+          {/each}
+        </select>
+      </label>
+    </li>
     <li>
       <label class="row">
         <span class="text">
@@ -130,6 +173,12 @@
   }
   .row {
     cursor: pointer;
+  }
+  .row.static {
+    cursor: default;
+  }
+  .row.static:hover {
+    background: none;
   }
 
   /* A standard switch in the notebook's palette: linen track, ink when on. */

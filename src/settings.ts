@@ -58,6 +58,15 @@ export const scrollPos = {
   },
 };
 
+/** Theme (owner decision, M4): follow the iPad (Paper by day, Night in dark mode), or pin one. */
+export type Theme = 'system' | 'paper' | 'night';
+export const theme = choice<Theme>('mp.theme', ['system', 'paper', 'night'], 'system');
+/** themes.css reads data-theme on <html>; without it the system decides. */
+export function applyTheme(t: Theme = theme.get()) {
+  if (t === 'system') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+}
+
 /** Paper for new pages (PRD 4.4); the owner's default is lined, college. */
 export const inkPaper = choice<PaperStyle>(
   'mp.ink.paper',
