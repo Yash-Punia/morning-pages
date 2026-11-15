@@ -6,10 +6,6 @@ test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 1024 });
   await page.goto('/today');
   await frame(page);
-  // These mornings are weeks old, so the backup note (M5) would show above the week strip. A
-  // Library taller than the window crashes headless WebKit on Windows when the week strip is
-  // tapped, on main too and with no note at all; that is tracked apart. Here: no note.
-  await page.evaluate(() => localStorage.setItem('mp.backup.snooze', new Date().toLocaleDateString('sv')));
   await seed(page, [
     { id: 'oct3a', date: '2026-10-03', title: 'Before work', createdAt: 1 },
     { id: 'oct3b', date: '2026-10-03', title: 'Evening, after all', createdAt: 2 },
