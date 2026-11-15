@@ -115,7 +115,7 @@ async function redraw(stop: () => boolean, render: Render, palette: () => Palett
   if (!(await db().kv.get(THUMBS_PENDING).catch(() => undefined))) return;
   const ids = await db().entries.toCollection().primaryKeys();
   for (const id of ids) {
-    await new Promise((r) => ('requestIdleCallback' in globalThis ? requestIdleCallback(r, { timeout: 1000 }) : setTimeout(r, 20)));
+    await new Promise((r) => ('requestIdleCallback' in globalThis ? requestIdleCallback(r, { timeout: 1000 }) : setTimeout(r, 200))); // no idle callback in some Safaris: go slowly
     if (stop()) return;
     const saved = await readEntry(db(), id);
     if (!saved || saved.pages.every((p) => p.thumbOps === p.opCount)) continue;

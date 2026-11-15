@@ -40,16 +40,19 @@
       : 'Scroll on Today with a finger, then come back',
   ];
 
-  // 5.1: a year backs up in under 60 s without freezing (PRD 12.1), timed on this device. The
-  // sample is written to a throwaway database, never the journal, and deleted afterwards.
-  let bench = $state('Not run');
+  // 5.1: a year backs up in under 60 s without freezing (PRD 12.1), timed on this device, and is
+  // read back and restored too. The sample (about 100 MB for a year) is written to a throwaway
+  // database, never the journal, and deleted afterwards.
+  let bench = $state('Not run. It needs about 150 MB free for a minute or two.');
   let benching = $state(false);
   async function runBench() {
     benching = true;
     try {
       const { benchBackup } = await import('../backup/client.ts');
-      const r = await benchBackup((f, phase) => (bench = `${phase === 'seed' ? 'Writing the sample' : 'Backing up'}… ${Math.round(f * 100)} %`));
-      bench = `${(r.buildMs / 1000).toFixed(1)} s for ${r.ops.toLocaleString()} strokes (${mb(r.ptsBytes)} of points, ${mb(r.bytes)} file); sample written in ${(r.seedMs / 1000).toFixed(0)} s`;
+      const PHASES: Record<string, string> = { seed: 'Writing the sample', build: 'Backing up', restore: 'Restoring' };
+      const r = await benchBackup((f, phase) => (bench = `${PHASES[phase] ?? phase}… ${Math.round(f * 100)} %`));
+      const s = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+      bench = `Backup ${s(r.buildMs)}, reading it back ${s(r.readMs)}, restoring ${s(r.restoreMs)}, for ${r.ops.toLocaleString()} strokes (${mb(r.ptsBytes)} of points, ${mb(r.bytes)} file); sample written in ${s(r.seedMs)}`;
     } catch (e) {
       bench = `Failed: ${(e as Error).message}`;
     } finally {

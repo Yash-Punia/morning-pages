@@ -8,11 +8,11 @@ import { expect, test } from '@playwright/test';
 // on the reference iPad. BACKUP_ENTRIES raises the sample locally.
 const ENTRIES = Number(process.env.BACKUP_ENTRIES ?? 30);
 
-test('a backup builds in a worker while the page keeps drawing frames', async ({ page }) => {
+test('a backup builds, reads back and restores in a worker while the page keeps drawing frames', async ({ page }) => {
   test.setTimeout(60_000 + ENTRIES * 20_000);
   await page.goto('/diagnostics');
   const r = await page.evaluate(async (entries) => {
-    type Client = { benchBackup(p?: unknown, entries?: number): Promise<{ ops: number; ptsBytes: number; buildMs: number; seedMs: number; bytes: number }> };
+    type Client = { benchBackup(p?: unknown, entries?: number): Promise<{ ops: number; ptsBytes: number; buildMs: number; readMs: number; restoreMs: number; seedMs: number; bytes: number }> };
     const { benchBackup } = await (window as unknown as { __store: { backup(): Promise<Client> } }).__store.backup();
     let worst = 0;
     let last = performance.now();
@@ -28,7 +28,7 @@ test('a backup builds in a worker while the page keeps drawing frames', async ({
     return { ...result, worst };
   }, ENTRIES);
 
-  console.log(`backup: ${ENTRIES} mornings, ${r.ops} strokes, ${(r.ptsBytes / 1048576).toFixed(1)} MB of points → ${(r.bytes / 1048576).toFixed(1)} MB file in ${(r.buildMs / 1000).toFixed(1)} s (seeded in ${(r.seedMs / 1000).toFixed(0)} s); longest frame gap ${r.worst.toFixed(0)} ms`);
+  console.log(`backup: ${ENTRIES} mornings, ${r.ops} strokes, ${(r.ptsBytes / 1048576).toFixed(1)} MB of points → ${(r.bytes / 1048576).toFixed(1)} MB file in ${(r.buildMs / 1000).toFixed(1)} s, read back in ${(r.readMs / 1000).toFixed(1)} s, restored in ${(r.restoreMs / 1000).toFixed(1)} s (seeded in ${(r.seedMs / 1000).toFixed(0)} s); longest frame gap ${r.worst.toFixed(0)} ms`);
   expect(r.ops).toBe(ENTRIES * 3 * 330);
   expect(r.bytes).toBeGreaterThan(r.ptsBytes * 0.3); // deflate shrinks the base64 below the raw points
   expect(r.worst).toBeLessThan(250); // a main-thread build would freeze for seconds

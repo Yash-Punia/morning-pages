@@ -32,14 +32,32 @@ export async function applyRestore(d: JournalDB, r: Records, mode: RestoreMode, 
   let done = 0;
   const tick = (n: number) => onProgress?.((done += n), total);
 
-  await newestWins(d, d.journals, r.journals, tick);
-  await newestWins(d, d.entries, r.entries, tick);
   const touched = new Set<string>();
-  await mergePages(d, r.pages, touched, tick);
-  await unionOps(d, r.ops, touched, tick);
-  await newestWins(d, d.blocks as unknown as Table<{ id: string; updatedAt: number }, string>, r.blocks, tick);
-  await assetsByHash(d, r.assets, tick);
-  await unionById(d, d.revisions, r.revisions, tick);
+  if (mode === 'replace') {
+    // The journal was just cleared, so there is nothing to compare against: write straight in.
+    // put, not add, so a Replace that was cut off and run again lands the same rows.
+    const tables: [Table<never, string>, object[]][] = [
+      [d.journals as never, r.journals], [d.entries as never, r.entries], [d.pages as never, r.pages],
+      [d.ops as never, r.ops], [d.blocks as never, r.blocks], [d.assets as never, r.assets], [d.revisions as never, r.revisions],
+    ];
+    for (const [table, rows] of tables)
+      for (const batch of batches(rows)) {
+        await d.transaction('rw', table, () => table.bulkPut(batch as never[]));
+        tick(batch.length);
+      }
+  } else {
+    await newestWins(d, d.journals, r.journals, tick);
+    await newestWins(d, d.entries, r.entries, tick);
+    await mergePages(d, r.pages, touched, tick);
+    await unionOps(d, r.ops, touched, tick);
+    await newestWins(d, d.blocks as unknown as Table<{ id: string; updatedAt: number }, string>, r.blocks, tick);
+    await assetsByHash(d, r.assets, tick);
+    await unionById(d, d.revisions, r.revisions, tick);
+  }
+  // Every page the backup names, not only those changed in this run: a run killed before this
+  // step leaves nothing "new" for the next run, but its pages still need their counts made right.
+  for (const p of r.pages) touched.add(p.id);
+  for (const o of r.ops) touched.add(o.pageId);
   await recount(d, [...touched]);
 
   await d.kv.bulkPut([{ key: THUMBS_PENDING, value: true }]);

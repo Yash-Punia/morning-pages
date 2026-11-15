@@ -16,7 +16,7 @@ import type { Preview } from './read.ts';
 import { RESTORE_MARK, type RestoreMode } from './restore.ts';
 
 export interface Built { file: File; manifest: Manifest }
-export interface Bench { ops: number; ptsBytes: number; seedMs: number; buildMs: number; bytes: number }
+export interface Bench { ops: number; ptsBytes: number; seedMs: number; buildMs: number; readMs: number; restoreMs: number; bytes: number }
 export type Progress = (fraction: number, phase: string) => void;
 
 /** Portable preferences from localStorage (owner decision, M5). */
@@ -33,12 +33,26 @@ export function readPrefs(): Record<string, string> {
 
 export const backupName = (createdAt: number) => `Morning Pages ${localDate(new Date(createdAt))}${EXTENSION}`;
 
+/**
+ * A worker that iOS kills (memory pressure) just goes quiet, with no error event. Two minutes
+ * without a word ends the job as failed, so no screen waits forever. Reading a year's file is
+ * one synchronous unzip with no progress, so the limit is generous.
+ */
+const SILENCE_MS = 120_000;
+
 /** One job in a fresh worker, ended afterwards so its memory goes with it. */
 async function run<T>(req: BackupRequest, done: string, onProgress?: Progress): Promise<T> {
   const worker = new Worker(new URL('../workers/backup.ts', import.meta.url), { type: 'module' });
+  let quiet: ReturnType<typeof setTimeout> | undefined;
   try {
     return await new Promise<T>((resolve, reject) => {
+      const listen = () => {
+        clearTimeout(quiet);
+        quiet = setTimeout(() => reject(new Error('the backup worker stopped responding')), SILENCE_MS);
+      };
+      listen();
       worker.addEventListener('message', (e: MessageEvent) => {
+        listen();
         const m = e.data;
         if (m.kind === 'progress') onProgress?.(m.total ? m.done / m.total : 1, m.phase);
         else if (m.kind === 'error') reject(new Error(m.error));
@@ -48,6 +62,7 @@ async function run<T>(req: BackupRequest, done: string, onProgress?: Progress): 
       worker.postMessage(req);
     });
   } finally {
+    clearTimeout(quiet);
     worker.terminate();
   }
 }
@@ -84,6 +99,8 @@ export async function restoreBackup(file: File, mode: RestoreMode, preview: Prev
   const { prefs } = await run<{ prefs: { key: string; value: string }[] }>({ kind: 'restore', file, dbName: dbName(), mode }, 'restored', onProgress);
   if (mode === 'replace' || empty)
     for (const p of prefs) {
+      // An opt-out travels; a backup never turns usage counts back on (TDD 9.4).
+      if (p.key === 'mp.analytics' && p.value !== 'off') continue;
       try { localStorage.setItem(p.key, p.value); } catch { /* private mode: keep this iPad's */ }
     }
   // The Library says what arrived, once (the end of the most anxious flow shouldn't be silent).
@@ -112,6 +129,12 @@ export type BackupState =
   | { step: 'error' };
 
 export const backup = writable<BackupState>({ step: 'idle' });
+
+// A built file is a snapshot. Once more writing is saved after it, it no longer holds everything,
+// so the pill goes back to "Back up now" rather than saving an old copy as if it were current.
+writes.state.subscribe((s) => {
+  if (s === 'saving' && get(backup).step === 'ready') backup.set({ step: 'idle' });
+});
 
 /** When the last saved backup was made (device state in IndexedDB's kv, never in a backup). */
 export const lastBackupAt = writable<number | null | undefined>(undefined);

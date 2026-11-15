@@ -152,6 +152,24 @@ describe('backup → wipe → restore (TDD 8.3, 12.3)', () => {
     expect(pages.map((p) => [p.id, p.index])).toEqual([['a-p0', 0], ['local-p1', 1], ['backup-p1', 2]]);
   });
 
+  test('a merge killed before its recount is put right by restoring the same file again', async () => {
+    const src = db();
+    await commitOp(src, ctx('a', '2026-11-10'), stroke('s1', 'a-p0', 1, 100));
+    await commitOp(src, ctx('a', '2026-11-10'), stroke('s2', 'a-p0', 2, 200));
+    const { records } = await readBackup(await fileOf(src));
+    const dst = fresh();
+    await commitOp(dst, ctx('a', '2026-11-10'), stroke('s3', 'a-p0', 1, 150));
+    // The first run got its ops in, then died: no recount, the marker still set.
+    await dst.ops.bulkAdd(records.ops);
+    await dst.kv.put({ key: RESTORE_MARK, value: 1 });
+    await applyRestore(dst, records, 'merge');
+    const page = (await dst.pages.get('a-p0'))!;
+    expect(page.opCount).toBe(3);
+    // Fold order: seq 1 (s1 at 100, s3 at 150), then s2.
+    expect(page.checksum).toBe(crc32('s2', crc32('s3', crc32('s1'))));
+    expect(await dst.kv.get(RESTORE_MARK)).toBeUndefined();
+  });
+
   test('restoring the same file twice changes nothing (resumable)', async () => {
     const src = db();
     await commitOp(src, ctx('a', '2026-11-10'), stroke('s1', 'a-p0', 1));

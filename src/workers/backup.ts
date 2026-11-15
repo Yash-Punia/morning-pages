@@ -56,7 +56,16 @@ addEventListener('message', async (e: MessageEvent<BackupRequest>) => {
         t = performance.now();
         const { chunks } = await build(d, {});
         const buildMs = performance.now() - t;
-        result = { kind: 'bench', ...seeded, seedMs, buildMs, bytes: chunks.reduce((n, c) => n + c.length, 0) };
+        // And back: read the file it made (checksums, every record) and replace the sample with it.
+        const bytes = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+        chunks.reduce((at, c) => (bytes.set(c, at), at + c.length), 0);
+        t = performance.now();
+        const { records } = await readBackup(bytes);
+        const readMs = performance.now() - t;
+        t = performance.now();
+        await applyRestore(d, records, 'replace', progress('restore'));
+        const restoreMs = performance.now() - t;
+        result = { kind: 'bench', ...seeded, seedMs, buildMs, readMs, restoreMs, bytes: bytes.length };
       } finally {
         d.close();
         await Dexie.delete(BENCH_DB); // before replying: the reply ends this worker

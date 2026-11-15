@@ -677,7 +677,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 - **Date:** 2026-11-15 · **Status:** Accepted (owner decision, M5 planning; amends D-047's consequence)
 - **Context:** D-047 keeps preferences in `localStorage`, so a backup restored onto a new iPad brought back every page but not the presets, paper or theme.
 - **Decision:**
-  - `records/kv.ndjson` carries the portable preferences: paper, smoothing, finger drawing, the toolbar (presets, dock, custom inks), the theme, the analytics choice and the reminder days.
+  - `records/kv.ndjson` carries the portable preferences: paper, smoothing, finger drawing, the toolbar (presets, dock, custom inks), the theme, the analytics choice and the reminder days. Only an opt-out is ever applied: a backup made with usage counts on never turns them back on.
   - Device state never travels: scroll positions, once-markers, onboarding and `lastBackupAt`.
   - A **Replace**, or any restore into a journal that is empty, applies them. A **Merge** keeps this iPad's.
 - **Alternatives:** Pages only (D-047 as it was); always applying them (a merge would quietly change this iPad's pen).
@@ -731,8 +731,17 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - The backup worker reads tables in pages of 5,000 rows (`getAll`), five times faster than a cursor in WebKit.
   - `/diagnostics` has "Backup of a sample year": the worker writes a sample year to a throwaway database, times its backup, and deletes it. It never touches the journal.
   - CI runs the same path at 30 mornings and gates only on the page's longest frame gap (< 250 ms). The time is reported.
-  - Measured on the Windows test machine, headless WebKit: a full year, 361,350 strokes (98 MB of points), built a 46.7 MB file in 16.8 s, with a longest frame gap of 66 ms.
-- **Consequences:** The iPad number is the owner check before merging M5.
+  - The benchmark measures both directions: it reads the file back (checksums and every record) and restores it with a Replace into the throwaway database.
+  - A Replace writes straight into the cleared tables with `bulkPut` (still idempotent, so a cut-off Replace can be run again); only a Merge compares record by record.
+  - Measured on the Windows test machine, headless WebKit, a full year: 361,350 strokes (98 MB of points). The page's longest frame gap stayed at 68 ms throughout:
+    - backup: a 46.7 MB file in 14.1 s;
+    - reading it back: 7.3 s;
+    - restoring: 69.8 s, the same as writing those rows at all on that engine (70 s).
+  - A worker that goes quiet for two minutes (iOS can kill one under memory pressure, with no error event) fails the job, so the screen reports it instead of waiting forever.
+- **Consequences:**
+  - The iPad numbers, both directions, are the owner check before merging M5.
+  - "Time it" briefly needs about 150 MB free.
+  - The whole backup file is held in the worker's memory while it's read. On older iPads, very large journals are the ceiling (TDD 8.2).
 
 ---
 
