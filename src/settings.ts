@@ -70,6 +70,12 @@ export function applyTheme(t: Theme = theme.get()) {
 /** BAK-2: a quiet Library note once the last backup is older than this many days. */
 export const backupDays = choice('mp.backup.days', ['1', '3', '7', '14', '30'] as const, '7');
 
+/** The local date the Library's backup note was put off with "Not now" (device state). */
+export const backupSnooze = {
+  get: () => read('mp.backup.snooze'),
+  set: (day: string) => write('mp.backup.snooze', day),
+};
+
 /** Paper for new pages (PRD 4.4); the owner's default is lined, college. */
 export const inkPaper = choice<PaperStyle>(
   'mp.ink.paper',

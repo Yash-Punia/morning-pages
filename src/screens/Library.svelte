@@ -7,7 +7,11 @@
   import { localDate, saved } from '../store/session.ts';
   import { storage } from '../store/storage.ts';
   import { redrawRestored, thumbsSettled } from '../store/thumbs.ts';
-  import { restoreUnfinished } from '../backup/client.ts';
+  import { backup, backupAction, lastBackupAt, loadLastBackup, restoreUnfinished } from '../backup/client.ts';
+  import { daysSince, reminderDue } from '../backup/reminder.ts';
+  import { backupDays, backupSnooze } from '../settings.ts';
+  import { oldestDate } from '../store/entries.ts';
+  import { fromLocalDate } from '../store/session.ts';
   import { route } from '../router.ts';
   import { get } from 'svelte/store';
   import { applyUpdate, needRefresh } from '../pwa/register.ts';
@@ -40,6 +44,24 @@
   void restoreUnfinished().then((v) => (unfinished = v));
   // Restored pages get their thumbnails at idle, pausing whenever a page is open for writing.
   void rows.then(() => redrawRestored(() => ['/today', '/entry/:id'].includes(get(route)?.template ?? ''))).catch(() => {});
+  // BAK-2: a quiet note when the last backup is older than the chosen days. Once shown, it stays
+  // for this visit through its build and save steps, then thanks and says when the next one is.
+  let remind = $state(false);
+  void Promise.all([loadLastBackup(), oldestDate(db())]).then(([, first]) => {
+    remind = reminderDue({
+      lastBackupAt: get(lastBackupAt) ?? null,
+      firstMorning: first ? fromLocalDate(first).getTime() : undefined,
+      days: Number(backupDays.get()),
+      snoozedOn: backupSnooze.get(),
+      today: todayIso,
+      now: Date.now(),
+    });
+  }, () => {});
+  const remindLead = $derived($lastBackupAt ? `Your last one was ${daysSince($lastBackupAt, Date.now())} days ago.` : 'You haven’t backed up yet. Your pages exist only on this iPad.');
+  function notNow() {
+    backupSnooze.set(todayIso);
+    remind = false;
+  }
   const href = (all: Row[], e: Row) => (e.id === all.find((r) => r.entryDate === todayIso)?.id ? '/today' : `/entry/${e.id}`);
 </script>
 
@@ -51,6 +73,26 @@
       <div class="banner update" role="status">
         <p><strong>A restore didn’t finish.</strong> Choose the same backup file again to finish it.</p>
         <a class="pill" href="/restore">Finish the restore</a>
+      </div>
+    {/if}
+    {#if remind}
+      <div class="banner update reminder" role="status">
+        {#if $backup.step === 'idle' && $backup.outcome}
+          <p><strong>Saved.</strong> {$backup.outcome === 'downloaded' ? 'It’s in Downloads; move it somewhere safe.' : ''} The next reminder is in {backupDays.get() === '1' ? 'a day' : `${backupDays.get()} days`}.</p>
+        {:else}
+          <p>
+            <strong>Time for a backup.</strong>
+            {$backup.step === 'building' ? `Preparing it… ${Math.round($backup.progress * 100)} %` : $backup.step === 'ready' ? 'Ready. Save it to Files, a USB drive or another device.' : $backup.step === 'error' ? 'It couldn’t be made just now. Try again in a moment.' : remindLead}
+          </p>
+          <span class="actions">
+            <button type="button" class="pill" class:solid={$backup.step === 'ready'} onclick={backupAction} disabled={$backup.step === 'building'}>
+              {$backup.step === 'ready' ? 'Save backup' : $backup.step === 'building' ? 'Preparing…' : 'Back up now'}
+            </button>
+            {#if $backup.step !== 'ready' && $backup.step !== 'building'}
+              <button type="button" class="text-button" onclick={notNow}>Not now</button>
+            {/if}
+          </span>
+        {/if}
       </div>
     {/if}
     {#if $needRefresh}
@@ -139,7 +181,7 @@
     margin: 0;
     flex: 1 1 18rem;
   }
-  .update button {
+  .update > button {
     min-height: var(--target);
     padding: 0 var(--space-5);
     border: 0;
@@ -152,11 +194,17 @@
     font-weight: 600;
     cursor: pointer;
   }
-  .update button:disabled {
+  .update > button:disabled {
     box-shadow: none;
     background: var(--linen-deep);
     color: var(--ink-soft);
     cursor: default;
+  }
+  .reminder .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .today {
