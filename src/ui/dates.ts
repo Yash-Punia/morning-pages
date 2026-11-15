@@ -18,6 +18,18 @@ export const weekdayLetter = (d: Date) => WEEKDAY.format(d);
 
 export const today = () => localDate(new Date());
 
+/** Whole calendar days from a moment to now, in local dates (0 = today). */
+export function daysAgo(at: number, now = new Date()): number {
+  const a = new Date(at);
+  return Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime()) / 86_400_000);
+}
+
+/** "Today", "Yesterday", or "3 days ago · Thursday, 12 November". */
+export function agoText(at: number, now = new Date()): string {
+  const n = daysAgo(at, now);
+  return n <= 0 ? 'Today' : n === 1 ? 'Yesterday' : `${n} days ago · ${dayDate(localDate(new Date(at)))}`;
+}
+
 /** The first day of the week in this locale (0 = Sunday … 6 = Saturday); Monday where unknown. */
 export function firstWeekday(): number {
   try {

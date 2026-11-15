@@ -5,7 +5,25 @@
   import { analyticsAllowed, applyTheme, fingerDrawing, inkPaper, inkSmoothing, setAnalyticsAllowed, theme as themePref } from '../settings.ts';
   import { checkStorage, storage } from '../store/storage.ts';
   import { PAPER_NAMES } from '../ink/paper.ts';
+  import { backup, backupAction, lastBackupAt, loadLastBackup } from '../backup/client.ts';
+  import { backupDays } from '../settings.ts';
+  import { agoText } from '../ui/dates.ts';
   let { params: _ }: { params: Params } = $props();
+
+  // BAK-1 / BAK-2, D-020: back up in two taps. The pill builds, then saves; ⌘B does the same.
+  void loadLastBackup();
+  let days = $state(backupDays.get());
+  $effect(() => backupDays.set(days));
+  const DAY_LABELS = { '1': 'After a day', '3': 'After 3 days', '7': 'After a week', '14': 'After 2 weeks', '30': 'After 30 days' } as const;
+  const backupHint = $derived.by(() => {
+    const s = $backup;
+    if (s.step === 'building') return `Preparing your backup… ${Math.round(s.progress * 100)} %`;
+    if (s.step === 'ready') return `Ready: ${mb(s.built.file.size)}. Save it to Files, a USB drive or another device.`;
+    if (s.step === 'error') return 'The backup couldn’t be made. Try again in a moment.';
+    if (s.outcome === 'downloaded') return 'Downloaded. Move it from Downloads to somewhere safe.';
+    if ($lastBackupAt === undefined) return '';
+    return $lastBackupAt === null ? 'Never. Your pages exist only on this iPad.' : agoText($lastBackupAt);
+  });
 
   let shareUsage = $state(analyticsAllowed());
   $effect(() => setAnalyticsAllowed(shareUsage));
@@ -32,6 +50,34 @@
 
 <section class="screen" aria-labelledby="settings-title">
   <h1 id="settings-title" class="screen-title">Settings</h1>
+  <h2 id="backup">Backup</h2>
+  <ul aria-labelledby="backup">
+    <li class="row static progressed">
+      <span class="text">
+        <span class="label">Last backup</span>
+        <span class="hint" aria-live="polite">{backupHint}</span>
+      </span>
+      <button type="button" class="pill" class:solid={$backup.step === 'ready'} onclick={backupAction} disabled={$backup.step === 'building'}>
+        {$backup.step === 'ready' ? 'Save backup' : $backup.step === 'building' ? 'Preparing…' : 'Back up now'}
+      </button>
+      {#if $backup.step === 'building'}
+        <progress max="1" value={$backup.progress} aria-label="Preparing your backup"></progress>
+      {/if}
+    </li>
+    <li>
+      <label class="row">
+        <span class="text">
+          <span class="label">Remind me to back up</span>
+          <span class="hint">A quiet note on the Library when the last backup is older</span>
+        </span>
+        <select bind:value={days}>
+          {#each backupDays.values as d (d)}
+            <option value={d}>{DAY_LABELS[d]}</option>
+          {/each}
+        </select>
+      </label>
+    </li>
+  </ul>
   <h2 id="storage">Storage</h2>
   <!-- STO-3 / STO-4: how safe the journal is on this iPad, in plain words. -->
   <ul aria-labelledby="storage">
@@ -215,6 +261,59 @@
   }
   a :global(.icon) {
     color: var(--ink-soft);
+  }
+
+  /* The backup pill: outlined while it builds the file, solid ink once it's ready to save. */
+  .pill {
+    flex: none;
+    min-height: var(--target);
+    padding: 0 var(--space-5);
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: none;
+    box-shadow: inset 0 0 0 1.5px var(--ink);
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out);
+  }
+  .pill.solid {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .pill.solid:hover {
+    background: color-mix(in oklch, var(--ink) 88%, var(--accent));
+  }
+  .pill:disabled {
+    box-shadow: none;
+    background: var(--linen-deep);
+    color: var(--ink-soft);
+    cursor: default;
+  }
+  /* Progress runs along the row's bottom rule: ink over the rule, with no animation of its own. */
+  .progressed {
+    position: relative;
+  }
+  progress {
+    appearance: none;
+    position: absolute;
+    inset: auto 0 calc(-1 * var(--hairline)) 0;
+    width: 100%;
+    height: 2px;
+    border: 0;
+    background: var(--rule);
+    color: var(--ink);
+  }
+  progress::-webkit-progress-bar {
+    background: var(--rule);
+  }
+  progress::-webkit-progress-value {
+    background: var(--ink);
+  }
+  progress::-moz-progress-bar {
+    background: var(--ink);
   }
   .text {
     display: grid;

@@ -12,6 +12,8 @@ export const SCHEMA = {
   save_error: { kind: ['connection', 'quota', 'unknown'], recovered: [true, false] },
   persist_status: { granted: [true, false] },
   storage_warning: { pct: ['80', '95'] },
+  // A backup file reached the share sheet or a download (TDD 9.4); size in MB, bucketed.
+  backup_done: { size: ['<10', '10-100', '100+'], encrypted: [true, false] },
   // TDD 9.4 lists the version; D-029 allows no free-text values, so this counts updates only.
   update_applied: {},
   // TDD 9.4's "list of tools" as enums (D-029 allows no lists): which pens, and whether erasing.
@@ -39,6 +41,7 @@ export const EVENT_DESCRIPTIONS: Record<EventName, string> = {
   save_error: 'That saving ran into a problem (a lost connection, full storage or something else), and whether it recovered.',
   persist_status: 'Whether iPadOS agreed to protect the app’s storage.',
   storage_warning: 'That storage passed 80 % or 95 % full.',
+  backup_done: 'That a backup was saved, its rough size (under 10 MB, up to 100 MB, or more) and whether it was encrypted. Never what is in it.',
   update_applied: 'That a new version of the app was installed.',
   session_end: 'When you leave after writing: roughly how long you wrote, how many pages, which pens and whether you erased, in rough ranges.',
 };
@@ -66,5 +69,8 @@ export function sessionBuckets(ms: number, pages: number, tools: Set<string>, er
   };
 }
 
-export const launchBucket = (ms: number): EventProps<'launch_perf'>['ms'] =>
+export const backupSizeBucket = (bytes: number): EventProps<'backup_done'>['size'] =>
+  bytes < 10 * 1048576 ? '<10' : bytes < 100 * 1048576 ? '10-100' : '100+';
+
+export const launchBucket =(ms: number): EventProps<'launch_perf'>['ms'] =>
   ms < 1000 ? '<1000' : ms < 1500 ? '1000-1500' : ms < 3000 ? '1500-3000' : '3000+';
