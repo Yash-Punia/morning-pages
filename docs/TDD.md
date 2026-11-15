@@ -748,7 +748,7 @@ Not used: `bolder`, `overdrive` (conflict with "calm, not gamified").
 npx impeccable detect --github src/
 ```
 
-Runs in CI on every PR. Starts as a warning (annotated in the PR) during M1–M2 while the design system forms; becomes **blocking** from the MVP release onward.
+Runs in CI on every PR and annotates it. It was a warning during M1–M5 while the design system formed, and is **blocking** from the MVP release (M6.4). Exceptions live in `.impeccable/config.json`, each with a reason.
 
 ### 12.4 Accessibility (PRD §10.4)
 
@@ -769,7 +769,7 @@ Runs in CI on every PR. Starts as a warning (annotated in the PR) during M1–M2
 | `build` | `vite build`; bundle-size script (≤ 400 KB gz launch path); assert `dist/index.html` has no inline `<script>`; assert worker chunks use no network API | yes |
 | `e2e` | Playwright **WebKit**: core flows, durability torture, network allowlist + content canary, axe | yes |
 | `headers` | Parse `vercel.json`; assert CSP string matches the §11.2 policy exactly (PRI-2 plus the single Umami `connect-src`) | yes |
-| `design` | `npx impeccable detect --github src/` (annotations; exit 2 = findings) | warning → blocking at MVP |
+| `design` | `npx impeccable detect --github src/` (annotations; exit 2 = findings) | yes (since M6.4) |
 
 ### 13.2 Key automated tests
 
