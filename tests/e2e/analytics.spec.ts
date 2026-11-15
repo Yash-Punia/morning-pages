@@ -79,3 +79,25 @@ test('nothing is sent from any other host (previews, localhost)', async ({ page 
   await page.waitForTimeout(500);
   expect(sent).toEqual([]);
 });
+
+test('leaving after writing sends one bucketed session summary; entry_started counts the first stroke', async ({ page }) => {
+  const { sent } = await capture(page);
+  await page.setViewportSize({ width: 1366, height: 1024 });
+  await page.goto(`${ORIGIN}/today`);
+  await page.waitForFunction(() => '__ink' in window);
+  const box = (await page.locator('[data-ink]').boundingBox())!;
+  await page.evaluate(async ({ box }) => {
+    const el = document.querySelector('[data-ink]')!;
+    const fire = (type: string, x: number) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 3, pointerType: 'pen', isPrimary: true, clientX: box.x + x, clientY: box.y + 500, pressure: 0.5, buttons: type === 'pointerup' ? 0 : 1 }));
+    fire('pointerdown', 200);
+    for (let i = 1; i <= 8; i++) { fire('pointermove', 200 + i * 30); await new Promise((r) => setTimeout(r, 8)); }
+    fire('pointerup', 440);
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    document.dispatchEvent(new Event('visibilitychange')); // a second hide sends nothing more
+  }, { box });
+  const named = () => sent.map((b) => JSON.parse(b).payload).filter((p) => p.name);
+  await expect.poll(() => named().filter((p) => p.name === 'session_end').length).toBe(1);
+  expect(named().find((p) => p.name === 'session_end')!.data).toEqual({ minutes: '0-5', pages: '1', tools: 'ballpoint', eraser: false });
+  expect(named().find((p) => p.name === 'entry_started')!.data).toEqual({ template: 'none', input: 'pen' });
+});

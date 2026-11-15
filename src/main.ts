@@ -9,12 +9,23 @@ import { startServiceWorker } from './pwa/register.ts';
 import { isInstalled } from './pwa/standalone.ts';
 import { launchBucket } from './analytics/events.ts';
 import { pageView, track } from './analytics/track.ts';
-import { once } from './settings.ts';
+import { applyTheme, onboarded, once } from './settings.ts';
+import { db } from './store/db.ts';
 import { checkStorage } from './store/storage.ts';
 
+applyTheme(); // before the first screen, so a pinned theme never flashes
 const app = mount(App, { target: document.getElementById('app')! });
 
-startRouter().then(() => {
+// ENT-1 / 4.3: a launch opens straight onto today's page, with no dialogs. Only the very first
+// launch in this storage container shows onboarding, and only if nothing has been written here.
+async function launch() {
+  if (onboarded.get()) return '/today';
+  const written = await db().entries.count().then((n) => n > 0, () => true);
+  if (written) onboarded.set(); // a journal from before onboarding existed
+  return written ? '/today' : '/onboarding';
+}
+
+startRouter(launch).then(() => {
   // Analytics after the first screen is up: never in the way of the page (TDD 9.4).
   const now = new Date();
   track('app_open', { mode: isInstalled() ? 'standalone' : 'browser', morning: now.getHours() < 12 });

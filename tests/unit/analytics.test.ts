@@ -36,3 +36,17 @@ test('durability events carry only their enums (TDD 9.4)', () => {
   expect(sanitize('storage_warning', { pct: '80', usage: 123456 })).toEqual({ pct: '80' });
   expect(sanitize('storage_warning', { pct: 81 })).toBeUndefined();
 });
+
+test('the privacy page describes every event that can be sent, and nothing else (PRI-7)', async () => {
+  const { EVENT_DESCRIPTIONS } = await import('../../src/analytics/events.ts');
+  expect(Object.keys(EVENT_DESCRIPTIONS).sort()).toEqual(Object.keys(SCHEMA).sort());
+  for (const text of Object.values(EVENT_DESCRIPTIONS)) expect(text.length).toBeGreaterThan(20);
+});
+
+test('a writing session is summarised in buckets, never exact numbers (session_end)', async () => {
+  const { sessionBuckets } = await import('../../src/analytics/events.ts');
+  expect(sessionBuckets(3 * 60_000, 1, new Set(['ballpoint']), false)).toEqual({ minutes: '0-5', pages: '1', tools: 'ballpoint', eraser: false });
+  expect(sessionBuckets(20 * 60_000, 3, new Set(['ballpoint', 'fountain']), true)).toEqual({ minutes: '15-30', pages: '2-3', tools: 'both', eraser: true });
+  expect(sessionBuckets(45 * 60_000, 7, new Set(['fountain']), false)).toMatchObject({ minutes: '30+', pages: '4+', tools: 'fountain' });
+  expect(sanitize('session_end', sessionBuckets(60_000, 2, new Set(['fountain']), false))).toEqual({ minutes: '0-5', pages: '2-3', tools: 'fountain', eraser: false });
+});

@@ -4,13 +4,16 @@
 // (ENT-1).
 import { InkDoc } from '../ink/page.ts';
 import { pointsBox } from '../ink/stroke.ts';
-import type { Page, PaperStyle, StrokeOp } from '../ink/types.ts';
+import type { Op, Page, PaperStyle, StrokeOp } from '../ink/types.ts';
 import { inkPaper } from '../settings.ts';
 import { fromRecord, toRecord } from './codec.ts';
 import { db, DB_VERSION, dbName, DEFAULT_JOURNAL, type PageRef, type RecoveryRec, type WriteCtx } from './db.ts';
 import { noBackupYet, prepareOpen } from './migrate.ts';
-import { commitOp, commitPaper, commitTitle, entryOn, readEntry } from './entries.ts';
+import { commitOp, commitPaper, commitTitle, entryOn, purgeDeleted, readEntry } from './entries.ts';
 import { writes } from './queue.ts';
+import { writable } from 'svelte/store';
+import { track } from '../analytics/track.ts';
+import { sessionBuckets } from '../analytics/events.ts';
 
 const TITLE_DEBOUNCE_MS = 500;
 
@@ -25,14 +28,29 @@ export const fromLocalDate = (s: string) => {
 let today: InkDoc | undefined;
 const opened = new Map<string, InkDoc>();
 
+/** Changes when "+ New entry" replaces today's entry, so the Today screen reopens. */
+export const todayKey = writable(0);
+
+const fresh = (day: string) =>
+  attach(new InkDoc(inkPaper.get(), { id: crypto.randomUUID(), journalId: DEFAULT_JOURNAL, entryDate: day, createdAt: Date.now() }), false);
+
+/**
+ * ENT-2: a new entry for today. Like any entry it is stored only with its first stroke or title
+ * (D-046), so a "+" left blank leaves nothing behind. The one it replaces stays open in memory.
+ */
+export function newToday(date: Date) {
+  if (today) opened.set(today.entry.id, today);
+  today = fresh(localDate(date));
+  todayKey.update((n) => n + 1);
+}
+
 /** Today's entry: the saved one if there is one, else a fresh page that is stored on first write. */
 export async function openToday(date: Date): Promise<InkDoc> {
   await ready();
   const day = localDate(date);
   if (today?.entry.entryDate !== day) {
     const found = await entryOn(db(), day);
-    today = (found && (await load(found.id)))
-      ?? attach(new InkDoc(inkPaper.get(), { id: crypto.randomUUID(), journalId: DEFAULT_JOURNAL, entryDate: day, createdAt: Date.now() }));
+    today = (found && (await load(found.id))) ?? fresh(day);
   }
   today.setPaper(inkPaper.get()); // the Settings choice applies to today's pages (PRD 4.4)
   return today;
@@ -57,9 +75,17 @@ async function load(id: string): Promise<InkDoc | undefined> {
 let titleTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingTitle: (() => void) | undefined;
 
-function attach(doc: InkDoc): InkDoc {
+function attach(doc: InkDoc, stored = true): InkDoc {
   const entryCtx = (): WriteCtx => ({ entry: doc.entry });
+  // entry_started (TDD 9.4): the first stroke or keystroke of an entry that wasn't stored yet.
+  const started = (input: 'pen' | 'finger' | 'keyboard') => {
+    if (stored) return;
+    stored = true;
+    track('entry_started', { template: 'none', input });
+  };
   doc.onOp = (op, page) => {
+    started(doc.input);
+    sessionWrote(op, page.id);
     const ctx = { entry: doc.entry, page: pageRef(page) };
     const rec = toRecord(op);
     writes.drop(`rec:${op.id}`); // its recovery mirror is no longer needed (TDD 6.3)
@@ -69,7 +95,8 @@ function attach(doc: InkDoc): InkDoc {
     const rec: RecoveryRec = { id: d.id, ctx: { entry: doc.entry, page: pageRef(d.page) }, title: doc.title, tool: d.tool, color: d.color, size: d.size, pts: d.pts, at: Date.now() };
     void writes.push({ key: `rec:${d.id}`, run: () => db().recovery.put(rec) });
   };
-  doc.onTitle = () => {
+  doc.onTitle = (title) => {
+    if (title) started('keyboard');
     clearTimeout(titleTimer);
     pendingTitle = () => {
       pendingTitle = undefined;
@@ -110,7 +137,15 @@ let booted: Promise<void> | undefined;
  */
 // ponytail: a failed version probe is ignored (a WebKit connection blip must not lock the journal
 // for the session); fine while no v2 exists. M5 must handle it once a real migration ships.
-export const ready = () => (booted ??= prepareOpen(dbName(), DB_VERSION, noBackupYet).catch(() => null).then(replayRecovery));
+export const ready = () => (booted ??= prepareOpen(dbName(), DB_VERSION, noBackupYet).catch(() => null).then(replayRecovery)
+  // ENT-7: entries deleted over 30 days ago are removed for good, quietly, at launch.
+  .then(() => purgeDeleted(db()).catch(() => 0)).then(() => {}));
+
+/** An entry was deleted: stop holding it open, so Today opens another (or a fresh page). */
+export function forgetEntry(id: string) {
+  if (today?.entry.id === id) today = undefined;
+  opened.delete(id);
+}
 
 /**
  * Each recovery record is the stroke in progress when the app died, with everything needed to
@@ -143,7 +178,24 @@ export function forgetOpened() {
   opened.clear();
 }
 
+// session_end (TDD 9.4): one summary when the app is hidden after writing, never while writing.
+let session: { since: number; pages: Set<string>; tools: Set<string>; erased: boolean } | undefined;
+function sessionWrote(op: Op, pageId: string) {
+  session ??= { since: Date.now(), pages: new Set(), tools: new Set(), erased: false };
+  session.pages.add(pageId);
+  if (op.kind === 'stroke') session.tools.add(op.tool);
+  else if (op.kind === 'erase') session.erased = true;
+}
+function sessionEnded() {
+  if (!session) return;
+  const s = session;
+  session = undefined;
+  track('session_end', sessionBuckets(Date.now() - s.since, s.pages.size, s.tools, s.erased));
+}
+
 if (typeof window !== 'undefined') {
+  addEventListener('pagehide', sessionEnded);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sessionEnded(); });
   addEventListener('pagehide', flushTitle);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushTitle(); });
   if (import.meta.env.VITE_E2E === '1') Object.assign(window, { __store: { db, writes, saved } });

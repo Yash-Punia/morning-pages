@@ -80,3 +80,18 @@ describe('store repositories (TDD 6.1, 7.2)', () => {
     expect(crc32('6789', crc32('12345'))).toBe(0xcbf43926);
   });
 });
+
+describe('listing for the Calendar and Timeline (M4)', () => {
+  test('a date range reads only those mornings; thumbnails come with the first page', async () => {
+    await commitOp(db(), ctx('a', '2026-10-31', 'pa'), stroke('s1', 'pa'));
+    await commitOp(db(), ctx('b', '2026-11-01', 'pb'), stroke('s2', 'pb'));
+    await commitOp(db(), ctx('c', '2026-11-30', 'pc'), stroke('s3', 'pc'));
+    await commitOp(db(), ctx('d', '2026-12-01', 'pd'), stroke('s4', 'pd'));
+    await db().pages.update('pb', { thumb: new Uint8Array([255, 216]).buffer, thumbOps: 1 });
+    const nov = await listEntries(db(), { from: '2026-11-01', to: '2026-11-30', thumbs: true });
+    expect(nov.map((r) => r.id)).toEqual(['c', 'b']);
+    expect(nov[1]!.thumb?.byteLength).toBe(2);
+    expect(nov[1]!.paper).toBe('lined-college');
+    expect((await listEntries(db(), { from: '2026-11-01', to: '2026-11-30' }))[1]!.thumb).toBeUndefined();
+  });
+});

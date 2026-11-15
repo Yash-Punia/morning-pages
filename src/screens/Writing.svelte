@@ -1,19 +1,28 @@
 <script lang="ts">
   // The writing surface for one entry: Today's, or a saved morning opened from the Library.
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import Canvas from '../ink/Canvas.svelte';
   import type { InkDoc } from '../ink/page.ts';
   import { tools } from '../ink/tools.ts';
   import { writes } from '../store/queue.ts';
   import { saveUnsavedCopy } from '../store/rescue.ts';
   import { flushTitle, localDate } from '../store/session.ts';
+  import { refreshThumbs } from '../store/thumbs.ts';
   import SavedDot from '../ui/SavedDot.svelte';
   import Toolbar from '../ui/Toolbar.svelte';
   let { doc, date }: { doc: InkDoc; date: Date } = $props();
 
   const label = $derived(new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date));
   const state = writes.state;
-  onDestroy(flushTitle); // a title typed just before leaving is still saved
+  onDestroy(() => {
+    flushTitle(); // a title typed just before leaving is still saved
+    void refreshThumbs(doc); // the page as it was left, for the Library and Calendar (M4.7)
+  });
+  onMount(() => {
+    const hidden = () => { if (document.visibilityState === 'hidden') void refreshThumbs(doc); };
+    document.addEventListener('visibilitychange', hidden);
+    return () => document.removeEventListener('visibilitychange', hidden);
+  });
 </script>
 
 <article class="today" aria-labelledby="today-date" data-dock={$tools.collapsed ? 'none' : $tools.dock}>
@@ -39,7 +48,7 @@
   .today {
     --gutter: 4.5rem;
     position: relative;
-    height: 100dvh;
+    height: calc(100dvh - var(--chrome-top, 0px)); /* minus the trial strip in Safari tabs */
     display: grid;
     grid-template: 'paper' 1fr / 1fr;
     background: var(--linen);
@@ -106,7 +115,7 @@
   }
   @media (max-width: 899.98px) {
     .today {
-      height: calc(100dvh - var(--tabbar-h));
+      height: calc(100dvh - var(--chrome-top, 0px) - var(--tabbar-h));
     }
   }
 </style>

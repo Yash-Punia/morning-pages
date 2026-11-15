@@ -10,6 +10,12 @@ const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } ca
 export const analyticsAllowed = () => read('mp.analytics') !== 'off';
 export const setAnalyticsAllowed = (on: boolean) => write('mp.analytics', on ? 'on' : 'off');
 
+/** First run is done in this storage container (a Safari tab and the installed app each have their own). */
+export const onboarded = {
+  get: () => read('mp.onboarded') === '1',
+  set: () => write('mp.onboarded', '1'),
+};
+
 /** Once-only markers for install_detected and the daily launch_perf event. */
 export const once = (key: string, value = '1') => {
   if (read(`mp.once.${key}`) === value) return false;
@@ -51,6 +57,15 @@ export const scrollPos = {
     write('mp.scroll', JSON.stringify(Object.fromEntries(Object.entries(all).slice(-10))));
   },
 };
+
+/** Theme (owner decision, M4): follow the iPad (Paper by day, Night in dark mode), or pin one. */
+export type Theme = 'system' | 'paper' | 'night';
+export const theme = choice<Theme>('mp.theme', ['system', 'paper', 'night'], 'system');
+/** themes.css reads data-theme on <html>; without it the system decides. */
+export function applyTheme(t: Theme = theme.get()) {
+  if (t === 'system') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+}
 
 /** Paper for new pages (PRD 4.4); the owner's default is lined, college. */
 export const inkPaper = choice<PaperStyle>(

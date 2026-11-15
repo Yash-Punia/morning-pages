@@ -13,6 +13,9 @@ const ROUTES: [template: string, title: string, load: Load][] = [
   ['/today', 'Today', async () => ({ default: Today })],
   ['/entry/:id', 'Entry', async () => ({ default: Entry })],
   ['/library', 'Library', () => import('./screens/Library.svelte')],
+  ['/calendar', 'Calendar', () => import('./screens/Calendar.svelte')],
+  ['/timeline', 'Timeline', () => import('./screens/Timeline.svelte')],
+  ['/deleted', 'Recently Deleted', () => import('./screens/Deleted.svelte')],
   ['/settings', 'Settings', () => import('./screens/Settings.svelte')],
   ['/onboarding', 'Welcome', () => import('./screens/Onboarding.svelte')],
   ['/privacy', 'Privacy', () => import('./screens/Privacy.svelte')],
@@ -56,7 +59,8 @@ export function navigate(path: string, { replace = false } = {}): Promise<void> 
   return render(location.pathname);
 }
 
-export function startRouter() {
+/** `launch` picks where a launch at "/" (the Home Screen start_url) lands: Today, or first-run onboarding. */
+export function startRouter(launch: () => string | Promise<string> = () => HOME) {
   addEventListener('popstate', () => render(location.pathname));
   // Same-origin links navigate in place; modified clicks, targets and downloads keep browser behaviour.
   document.addEventListener('click', (e) => {
@@ -66,5 +70,6 @@ export function startRouter() {
     e.preventDefault();
     navigate(a.pathname + a.search);
   });
-  return location.pathname === '/' ? navigate(HOME, { replace: true }) : render(location.pathname);
+  if (location.pathname !== '/') return render(location.pathname);
+  return Promise.resolve(launch()).then((path) => navigate(path, { replace: true }));
 }

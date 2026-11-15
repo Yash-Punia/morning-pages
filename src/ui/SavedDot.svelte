@@ -20,8 +20,8 @@
     width: 0.5rem;
     height: 0.5rem;
     border-radius: 50%;
-    border: 1.5px solid var(--ink-soft);
-    background: var(--ink-soft);
+    border: 1.5px solid var(--sage); /* Pressed Sage: "saved" (DESIGN.md) */
+    background: var(--sage);
     transition: background-color var(--dur-base) var(--ease-out);
   }
   /* Most saves finish in ~15 ms: only a save that takes a while ever shows hollow. */

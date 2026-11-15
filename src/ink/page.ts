@@ -31,6 +31,8 @@ export class InkDoc {
   private all = new Map<string, StrokeOp>(); // every stroke ever written, visible or not
   private undoStack: Step[] = []; // unlimited, per session (TDD 5.6)
   private redoStack: Step[] = [];
+  /** How the latest stroke was made, for the anonymous entry_started count (TDD 9.4). */
+  input: 'pen' | 'finger' = 'pen';
   /** The entry's typed title (Entry.title, TDD 7.2); empty means untitled. */
   title = '';
   /** Which entry this is: ids are assigned when it is opened, and stored with its first write. */
