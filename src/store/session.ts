@@ -9,7 +9,7 @@ import { inkPaper } from '../settings.ts';
 import { fromRecord, toRecord } from './codec.ts';
 import { db, DB_VERSION, dbName, DEFAULT_JOURNAL, type PageRef, type RecoveryRec, type WriteCtx } from './db.ts';
 import { noBackupYet, prepareOpen } from './migrate.ts';
-import { commitOp, commitPaper, commitTitle, entryOn, readEntry } from './entries.ts';
+import { commitOp, commitPaper, commitTitle, entryOn, purgeDeleted, readEntry } from './entries.ts';
 import { writes } from './queue.ts';
 import { writable } from 'svelte/store';
 import { track } from '../analytics/track.ts';
@@ -135,7 +135,15 @@ let booted: Promise<void> | undefined;
  */
 // ponytail: a failed version probe is ignored (a WebKit connection blip must not lock the journal
 // for the session); fine while no v2 exists. M5 must handle it once a real migration ships.
-export const ready = () => (booted ??= prepareOpen(dbName(), DB_VERSION, noBackupYet).catch(() => null).then(replayRecovery));
+export const ready = () => (booted ??= prepareOpen(dbName(), DB_VERSION, noBackupYet).catch(() => null).then(replayRecovery)
+  // ENT-7: entries deleted over 30 days ago are removed for good, quietly, at launch.
+  .then(() => purgeDeleted(db()).catch(() => 0)).then(() => {}));
+
+/** An entry was deleted: stop holding it open, so Today opens another (or a fresh page). */
+export function forgetEntry(id: string) {
+  if (today?.entry.id === id) today = undefined;
+  opened.delete(id);
+}
 
 /**
  * Each recovery record is the stroke in progress when the app died, with everything needed to

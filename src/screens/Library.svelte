@@ -72,6 +72,8 @@
   {:catch}
     <p class="lede">This iPad couldn't read the journal just now. Close the app and open it again.</p>
   {/await}
+
+  <p class="foot"><a href="/deleted">Recently Deleted</a></p>
 </section>
 
 <style>
@@ -181,6 +183,15 @@
     margin: var(--space-7) 0 0;
     font-size: var(--text-md);
     font-weight: 700;
+  }
+  .foot {
+    margin: var(--space-6) 0 0;
+  }
+  .foot a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--target);
+    color: var(--ink-soft);
   }
   .rows {
     list-style: none;

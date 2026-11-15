@@ -128,3 +128,61 @@ export function crc32(text: string, prev = 0): number {
   for (let i = 0; i < text.length; i++) c = CRC[(c ^ text.charCodeAt(i)) & 0xff]! ^ (c >>> 8);
   return ~c >>> 0;
 }
+
+/** ENT-7: kept in Recently Deleted for this long, then removed for good. */
+export const DELETED_DAYS = 30;
+const DAY_MS = 86_400_000;
+
+/** Move an entry to Recently Deleted. Nothing is removed: restoring brings it back intact. */
+export function deleteEntry(d: JournalDB, id: string, now = Date.now()) {
+  return d.entries.update(id, { deletedAt: now });
+}
+
+/** Bring an entry back from Recently Deleted. */
+export function restoreEntry(d: JournalDB, id: string) {
+  return d.transaction('rw', d.entries, async () => {
+    const e = await d.entries.get(id);
+    if (!e) return;
+    delete e.deletedAt;
+    await d.entries.put(e); // put, so the deletedAt index entry goes too
+  });
+}
+
+export interface DeletedRow extends EntryRow { deletedAt: number }
+
+/** Recently Deleted, most recently deleted first (the deletedAt index holds exactly these, TDD 7.1). */
+export async function listDeleted(d: JournalDB): Promise<DeletedRow[]> {
+  return d.transaction('r', [d.entries, d.pages], async () => {
+    const entries = await d.entries.where('deletedAt').above(0).reverse().toArray();
+    const pages = await d.pages.where('entryId').anyOf(entries.map((e) => e.id)).toArray();
+    return entries.map((e) => {
+      const mine = pages.filter((p) => p.entryId === e.id);
+      const first = mine.find((p) => p.index === 0);
+      return {
+        id: e.id, entryDate: e.entryDate, title: e.title ?? '', pages: Math.max(1, mine.length),
+        createdAt: e.createdAt, updatedAt: e.updatedAt, deletedAt: e.deletedAt!,
+        paper: first?.paper ?? 'lined-college', thumb: first?.thumb,
+      };
+    });
+  });
+}
+
+/** When a deleted entry is removed for good. */
+export const purgeAt = (deletedAt: number) => deletedAt + DELETED_DAYS * DAY_MS;
+
+/**
+ * The only hard delete outside Panic wipe (TDD 7.2): entries deleted more than 30 days ago go,
+ * with their pages and ops, in one transaction. Returns how many entries were removed.
+ */
+export async function purgeDeleted(d: JournalDB, now = Date.now()): Promise<number> {
+  return d.transaction('rw', [d.entries, d.pages, d.ops], async () => {
+    const old = await d.entries.where('deletedAt').below(now - DELETED_DAYS * DAY_MS).toArray();
+    for (const e of old) {
+      const pageIds = await d.pages.where('entryId').equals(e.id).primaryKeys();
+      await d.ops.where('pageId').anyOf(pageIds).delete();
+      await d.pages.bulkDelete(pageIds);
+      await d.entries.delete(e.id);
+    }
+    return old.length;
+  });
+}
