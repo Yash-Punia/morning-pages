@@ -3,6 +3,7 @@
 // database always catches up with it (TDD 6.1). Nothing is stored until there is ink or a title
 // (ENT-1).
 import { InkDoc } from '../ink/page.ts';
+import { inkMetrics } from '../ink/metrics.ts';
 import { pointsBox } from '../ink/stroke.ts';
 import type { Op, Page, PaperStyle, Pt, StrokeOp } from '../ink/types.ts';
 import { inkPaper } from '../settings.ts';
@@ -10,6 +11,7 @@ import { fromRecord, toRecord } from './codec.ts';
 import { db, DB_VERSION, dbName, DEFAULT_JOURNAL, type PageRef, type RecoveryRec, type WriteCtx } from './db.ts';
 import { noBackupYet, prepareOpen } from './migrate.ts';
 import { commitOp, commitPaper, commitTitle, entryOn, purgeDeleted, readEntry } from './entries.ts';
+import { attachLog, log } from './log.ts';
 import { writes } from './queue.ts';
 import { writable } from 'svelte/store';
 import { track } from '../analytics/track.ts';
@@ -46,6 +48,7 @@ export function newToday(date: Date) {
 
 /** Today's entry: the saved one if there is one, else a fresh page that is stored on first write. */
 export async function openToday(date: Date): Promise<InkDoc> {
+  inkMetrics.opening();
   await ready();
   const day = localDate(date);
   if (today?.entry.entryDate !== day) {
@@ -58,6 +61,7 @@ export async function openToday(date: Date): Promise<InkDoc> {
 
 /** A saved entry, to read or keep writing. */
 export async function openEntry(id: string): Promise<InkDoc | undefined> {
+  inkMetrics.opening();
   await ready();
   if (today?.entry.id === id) return today;
   return opened.get(id) ?? load(id);
@@ -137,7 +141,8 @@ let booted: Promise<void> | undefined;
  */
 // ponytail: a failed version probe is ignored (a WebKit connection blip must not lock the journal
 // for the session); fine while no v2 exists. M5 must handle it once a real migration ships.
-export const ready = () => (booted ??= prepareOpen(dbName(), DB_VERSION, noBackupYet).catch(() => null).then(replayRecovery)
+export const ready = () => (booted ??= prepareOpen(dbName(), DB_VERSION, noBackupYet).catch(() => null)
+  .then(() => attachLog(db().kv)).then(replayRecovery)
   // ENT-7: entries deleted over 30 days ago are removed for good, quietly, at launch.
   .then(() => purgeDeleted(db()).catch(() => 0)).then(() => {}));
 
@@ -169,6 +174,7 @@ async function replayRecovery() {
       recovered.failed++; // kept for the next launch: never let one record stop the journal opening
     }
   }
+  if (records.length) log('recovery', `${recovered.replayed} restored, ${recovered.skipped} already saved, ${recovered.failed} failed`);
 }
 
 /** Tests: forget the entries held in memory, as a relaunch would. */

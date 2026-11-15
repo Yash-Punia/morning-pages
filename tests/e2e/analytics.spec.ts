@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { SCHEMA } from '../../src/analytics/events.ts';
+import { drag } from './ink-helpers.ts';
 
 // Network allowlist + content canary (TDD 13.2, D-029). The test build's production host is
 // 127.0.0.1; Umami is intercepted, so nothing leaves the machine.
@@ -46,6 +47,48 @@ test('sends only allowlisted, content-free events, and only to Umami', async ({ 
   expect(payloads.map((p) => p.name).filter(Boolean)).toContain('app_open');
   expect(payloads.map((p) => p.url)).toEqual(expect.arrayContaining(['/today', '/entry']));
   expect(stray).toEqual([]);
+});
+
+test('typed text, ink and ids never leave the device; the app only GETs its own files', async ({ page, context }) => {
+  // TDD 13.2: every request, from the page or any worker, is a same-origin GET (the app's own
+  // files) or an allowlisted POST to Umami. A canary typed as the title, the ink, and the real
+  // entry id must appear in none of them.
+  const requests: { url: string; method: string; body: string }[] = [];
+  await page.route('https://gateway.umami.is/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+  context.on('request', (req) => requests.push({ url: req.url(), method: req.method(), body: req.postData() ?? '' }));
+
+  await page.setViewportSize({ width: 1366, height: 1024 });
+  await page.goto(`${ORIGIN}/today`);
+  await page.waitForFunction(() => performance.getEntriesByName('writable').length === 1);
+  const title = page.getByRole('textbox', { name: 'Entry title' });
+  await title.fill(`${CANARY} a slow start`);
+  await title.press('Enter');
+  for (let i = 0; i < 3; i++) await drag(page, 'pen', { x: 200, y: 500 + i * 40 }, { x: 600, y: 500 + i * 40 });
+  await expect(page.locator('[data-state]')).toHaveAttribute('data-state', 'saved');
+  await page.waitForTimeout(700); // the title is saved after a 500 ms pause in typing
+  await expect(page.locator('[data-state]')).toHaveAttribute('data-state', 'saved');
+  const entryId = await page.evaluate(() => (window as unknown as { __ink: { doc: { entry: { id: string } } } }).__ink.doc.entry.id);
+  expect(entryId).toMatch(/[0-9a-f-]{36}/);
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(() => requests.filter((r) => r.body.includes('"session_end"')).length).toBe(1);
+
+  const umami = requests.filter((r) => r.url.startsWith('https://gateway.umami.is/'));
+  expect(umami.length).toBeGreaterThanOrEqual(3); // page view, app_open, entry_started, session_end
+  for (const r of requests) {
+    expect(r.url + r.body).not.toContain(CANARY);
+    expect(r.url + r.body).not.toContain(entryId);
+    if (new URL(r.url).origin === ORIGIN) expect(r.method, r.url).toBe('GET');
+    else {
+      expect(r.url).toBe('https://gateway.umami.is/api/send');
+      expect(r.method).toBe('POST');
+      const { payload } = JSON.parse(r.body);
+      if (payload.name) expect(Object.keys(SCHEMA)).toContain(payload.name);
+    }
+  }
 });
 
 test('sends nothing when usage counts are switched off', async ({ page }) => {

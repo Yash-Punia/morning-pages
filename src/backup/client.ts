@@ -5,6 +5,7 @@ import { writable, get } from 'svelte/store';
 import { backupSizeBucket } from '../analytics/events.ts';
 import { track } from '../analytics/track.ts';
 import { db, dbName } from '../store/db.ts';
+import { flushLog, log } from '../store/log.ts';
 import { writes } from '../store/queue.ts';
 import { localDate, saved } from '../store/session.ts';
 import { shareFile, type ShareOutcome } from '../store/share.ts';
@@ -96,7 +97,8 @@ export const restoreUnfinished = () => db().kv.get(RESTORE_MARK).then((r) => !!r
 export async function restoreBackup(file: File, mode: RestoreMode, preview: Preview, onProgress?: Progress) {
   const empty = !(await hasJournal());
   await Promise.all([saved(), thumbsSettled()]);
-  const { prefs } = await run<{ prefs: { key: string; value: string }[] }>({ kind: 'restore', file, dbName: dbName(), mode }, 'restored', onProgress);
+  const { prefs } = await run<{ prefs: { key: string; value: string }[] }>({ kind: 'restore', file, dbName: dbName(), mode }, 'restored', onProgress)
+    .catch((e: Error) => { log('restore', `${mode} failed: ${e.name}: ${e.message}`); throw e; });
   if (mode === 'replace' || empty)
     for (const p of prefs) {
       // An opt-out travels; a backup never turns usage counts back on (TDD 9.4).
@@ -105,6 +107,9 @@ export async function restoreBackup(file: File, mode: RestoreMode, preview: Prev
     }
   // The Library says what arrived, once (the end of the most anxious flow shouldn't be silent).
   try { sessionStorage.setItem(RESTORED, JSON.stringify({ mornings: preview.mornings, range: preview.dateRange })); } catch { /* no note, still restored */ }
+  log('restore', `${mode} finished`);
+  // The reload comes before the log's own write would. Never let it hold up the reload.
+  await Promise.race([flushLog(), new Promise((r) => setTimeout(r, 300))]);
   location.replace('/library');
 }
 
@@ -156,7 +161,8 @@ export async function backupAction(): Promise<void> {
   try {
     const built = await buildBackupFile((progress, phase) => phase === 'build' && backup.set({ step: 'building', progress }));
     backup.set({ step: 'ready', built });
-  } catch {
+  } catch (e) {
+    log('backup', `failed: ${(e as Error).name}: ${(e as Error).message}`);
     backup.set({ step: 'error' });
   }
 }

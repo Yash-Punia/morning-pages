@@ -2,6 +2,7 @@
 // pressure unless it is persisted, so every launch asks until iPadOS grants it. Usage is checked
 // at launch, with a warning from 80 % of the quota the journal may use.
 import { writable } from 'svelte/store';
+import { db } from './db.ts';
 
 export interface StorageStatus {
   /** null: unknown (the browser can't say) */
@@ -31,4 +32,17 @@ export async function checkStorage(api: StorageManager | undefined = navigator.s
   const status = { persisted, usage, quota, warn: warnLevel(usage, quota) };
   storage.set(status);
   return status;
+}
+
+/** PRD 12.1: stored ink per handwritten page, averaged over the pages of the 10 most recently
+ *  changed mornings (a bounded read, for /diagnostics). */
+export async function inkPerPage(): Promise<{ pages: number; avgBytes: number }> {
+  const entries = await db().entries.orderBy('updatedAt').reverse().limit(10).primaryKeys();
+  const pages = await db().pages.where('entryId').anyOf(entries as string[]).primaryKeys();
+  const bytes = new Map<string, number>();
+  await db().ops.where('pageId').anyOf(pages as string[]).each((op) => {
+    if (op.pts) bytes.set(op.pageId, (bytes.get(op.pageId) ?? 0) + op.pts.byteLength);
+  });
+  const total = [...bytes.values()].reduce((a, b) => a + b, 0);
+  return { pages: bytes.size, avgBytes: bytes.size ? total / bytes.size : 0 };
 }

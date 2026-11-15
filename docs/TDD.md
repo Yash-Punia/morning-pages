@@ -224,7 +224,7 @@ All budgets are measured on the reference device: iPad Pro 12.9″ (6th gen, M2)
 | Cold launch < 1.5 s | `performance.mark('writable')` vs. navigation start, logged locally |
 | App shell < 400 KB gz | CI script sums the gzipped **launch-critical** bytes: `index.html`, the entry and `/today` chunks, their CSS, and any preloaded font files. Fails the build over budget. Total service-worker precache size (all routes, fonts, prompt packs) is reported separately in the PR, not gated (D-027) |
 
-The owner develops on Windows, so Safari Web Inspector is not available. `/diagnostics` (also toggled by a 4-finger long-press on the canvas) is the primary on-device debugging tool (D-018).
+The owner develops on Windows, so Safari Web Inspector is not available. `/diagnostics`, opened from Settings, is the primary on-device debugging tool (D-018, D-061). Cold launch is timed to `performance.mark('writable')`, set when the launch's first page is painted (D-060).
 
 ### 5.8 Handwriting recognition model delivery (v2)
 
@@ -748,7 +748,7 @@ Not used: `bolder`, `overdrive` (conflict with "calm, not gamified").
 npx impeccable detect --github src/
 ```
 
-Runs in CI on every PR. Starts as a warning (annotated in the PR) during M1–M2 while the design system forms; becomes **blocking** from the MVP release onward.
+Runs in CI on every PR and annotates it. It was a warning during M1–M5 while the design system formed, and is **blocking** from the MVP release (M6.4). Exceptions live in `.impeccable/config.json`, each with a reason.
 
 ### 12.4 Accessibility (PRD §10.4)
 
@@ -766,10 +766,10 @@ Runs in CI on every PR. Starts as a warning (annotated in the PR) during M1–M2
 | Job | What | Blocks merge |
 | --- | --- | --- |
 | `check` | `npm ci`, `svelte-check`, `vitest run` | yes |
-| `build` | `vite build`; bundle-size script (≤ 400 KB gz launch path); assert `dist/index.html` has no inline `<script>` | yes |
+| `build` | `vite build`; bundle-size script (≤ 400 KB gz launch path); assert `dist/index.html` has no inline `<script>`; assert worker chunks use no network API | yes |
 | `e2e` | Playwright **WebKit**: core flows, durability torture, network allowlist + content canary, axe | yes |
 | `headers` | Parse `vercel.json`; assert CSP string matches the §11.2 policy exactly (PRI-2 plus the single Umami `connect-src`) | yes |
-| `design` | `npx impeccable detect --github src/` (annotations; exit 2 = findings) | warning → blocking at MVP |
+| `design` | `npx impeccable detect --github src/` (annotations; exit 2 = findings) | yes (since M6.4) |
 
 ### 13.2 Key automated tests
 
@@ -778,7 +778,7 @@ Runs in CI on every PR. Starts as a warning (annotated in the PR) during M1–M2
 - **Durability torture (Playwright WebKit):** synthetic pen strokes via dispatched `PointerEvent({ pointerType: 'pen' })`; reload mid-stroke; close the page mid-transaction; dispatch `pointercancel`; `visibilitychange`; fill quota with a stub; assert zero lost strokes after reopen (recovery included).
 - **Backup round-trip:** fixture journal → backup → wipe → restore → deep-equal records and checksums; merge with conflicting `updatedAt`.
 - **Migrations:** each `tests/fixtures/db-v{n}.json` upgraded to latest; idempotent re-run.
-- **Network allowlist + content canary:** the test build sets `VITE_PRODUCTION_HOST` to the test host so analytics fire. Record `page.on('request')` after the `writable` mark. Every request must be either a same-origin `GET` (SW/assets) or a `POST` to `gateway.umami.is/api/send` whose body validates against the event allowlist (§9.4). The test writes typed text containing a unique canary string and a known entry id, and fails if either appears in any request. A second run with analytics switched off asserts zero requests to Umami.
+- **Network allowlist + content canary:** the test build sets `VITE_PRODUCTION_HOST` to the test host so analytics fire. Record `page.on('request')` after the `writable` mark. Every request must be either a same-origin `GET` (SW/assets) or a `POST` to `gateway.umami.is/api/send` whose body validates against the event allowlist (§9.4). The test writes typed text containing a unique canary string and a known entry id, and fails if either appears in any request. A second run with analytics switched off asserts zero requests to Umami. Playwright WebKit doesn't report requests made by dedicated workers, so the build check asserts instead that no worker chunk uses `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource` or `importScripts` (M6.2).
 - **Analytics schema:** unit test that every event's properties are enums, booleans or buckets; `sanitize()` drops unknown keys.
 - **Crypto (v1):** known-vector tests for wrap/unwrap, PBKDF2 params, recovery-code derivation.
 
@@ -800,7 +800,7 @@ Service workers need a secure context, and the iPad reaching a dev machine by LA
 Two layers, and neither carries journal content:
 
 - **Fleet view (anonymous):** the Umami events in §9.4. `save_error`, `persist_status`, `storage_warning` and `launch_perf` show whether durability and speed hold up on other people's iPads.
-- **Device view (local only):** there is no remote error logging. `kv.log` is a ring buffer (last 500 events) of errors, queue retries, self-check results and launch timings. It is visible in `/diagnostics`, included in backups, and exportable as a text file for bug reports. Nothing is sent anywhere.
+- **Device view (local only):** there is no remote error logging. `kv.log` is a ring buffer (last 500 events) of errors, queue retries, self-check results and launch timings. It is visible in `/diagnostics` and exportable as a text file for bug reports. It is not included in backups (D-060). Nothing is sent anywhere.
 
 ---
 

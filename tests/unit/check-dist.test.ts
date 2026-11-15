@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { inlineProblems, launchFiles, transferSize, BUDGET } from '../../scripts/check-dist.mjs';
+import { inlineProblems, launchFiles, networkProblems, transferSize, BUDGET } from '../../scripts/check-dist.mjs';
 
 const manifest = {
   'index.html': { file: 'assets/index.js', isEntry: true, imports: ['_shared.js'], css: ['assets/index.css'] },
@@ -24,4 +24,9 @@ test('flags inline script, style tag and style attribute, but not module scripts
   expect(inlineProblems('<script type="module" crossorigin src="/assets/i.js"></script>')).toEqual([]);
   expect(inlineProblems('<script>boot()</script>')).toEqual(['inline <script>']);
   expect(inlineProblems('<style>a{}</style><div style="x"></div>')).toEqual(['inline <style>', 'style="" attribute']);
+});
+
+test('workers never touch the network (PRI-1)', () => {
+  expect(networkProblems('self.onmessage = (e) => postMessage(e.data)')).toEqual([]);
+  expect(networkProblems('fetch("/x"); new WebSocket(u)')).toEqual(['fetch(', 'WebSocket']);
 });
