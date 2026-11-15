@@ -45,9 +45,10 @@ export function commitTitle(d: JournalDB, ctx: WriteCtx, title: string) {
   });
 }
 
-/** Paper chosen in Settings applies to the whole entry (PRD 4.4). */
-export function commitPaper(d: JournalDB, entryId: string, paper: PaperStyle) {
-  return d.transaction('rw', d.pages, () => d.pages.where('entryId').equals(entryId).modify({ paper }));
+/** Paper chosen in Settings applies to the whole entry (PRD 4.4). updatedAt moves, so a merge
+ *  restore keeps the newer choice (TDD 8.3). */
+export function commitPaper(d: JournalDB, entryId: string, paper: PaperStyle, now = Date.now()) {
+  return d.transaction('rw', d.pages, () => d.pages.where('entryId').equals(entryId).modify({ paper, updatedAt: now }));
 }
 
 async function lastSeq(d: JournalDB, pageId: string) {
@@ -133,17 +134,19 @@ export function crc32(text: string, prev = 0): number {
 export const DELETED_DAYS = 30;
 const DAY_MS = 86_400_000;
 
-/** Move an entry to Recently Deleted. Nothing is removed: restoring brings it back intact. */
+/** Move an entry to Recently Deleted. Nothing is removed: restoring brings it back intact.
+ *  Deleting and restoring move updatedAt, so a merge restore keeps the newer state (TDD 8.3). */
 export function deleteEntry(d: JournalDB, id: string, now = Date.now()) {
-  return d.entries.update(id, { deletedAt: now });
+  return d.entries.update(id, { deletedAt: now, updatedAt: now });
 }
 
 /** Bring an entry back from Recently Deleted. */
-export function restoreEntry(d: JournalDB, id: string) {
+export function restoreEntry(d: JournalDB, id: string, now = Date.now()) {
   return d.transaction('rw', d.entries, async () => {
     const e = await d.entries.get(id);
     if (!e) return;
     delete e.deletedAt;
+    e.updatedAt = now;
     await d.entries.put(e); // put, so the deletedAt index entry goes too
   });
 }
