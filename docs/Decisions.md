@@ -69,6 +69,8 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 | D-057 | 2026-11-15 | Backup reminders count from the first morning; "Not now" waits a day | Accepted |
 | D-058 | 2026-11-15 | The 60-second backup budget is measured on the device, from /diagnostics | Accepted |
 | D-059 | 2026-11-15 | The root always scrolls, so a view transition never makes it a scroller | Accepted |
+| D-060 | 2026-11-15 | The local log stays on the device and out of backups; launch is timed to the first painted page | Accepted |
+| D-061 | 2026-11-15 | No 4-finger long-press for /diagnostics; it opens from Settings | Accepted |
 
 ---
 
@@ -751,6 +753,27 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 - **Decision:** `html { overflow-y: scroll }` in `base.css`. The root is a scroller from the first frame, so a route change never creates one mid-transition. A regression test in `calendar.spec.ts` opens a Library with two weeks of mornings by mouse and taps its week strip.
 - **Alternatives:** Skipping the view transition in tests, or on Windows only: this hides route changes from e2e and leaves the crash. Dropping the spine links' colour transition: in the app this avoided the crash, but the plain-HTML repro crashes without any transition. Snoozing the backup note in tests: this only hides the crash for one screen.
 - **Consequences:** iPadOS draws overlay scrollbars, so nothing changes on screen. A desktop browser with classic scrollbars shows an empty scrollbar gutter on short screens. The Writing screen is exactly one viewport tall and does not scroll. Check on the device (TDD 13.2) that the root rubber-band doesn't fight a pen stroke.
+
+### D-060 · The local log stays on the device and out of backups; launch is timed to the first painted page
+
+- **Date:** 2026-11-15 · **Status:** Accepted (owner decision, M6 planning)
+- **Context:** TDD §14 describes `kv.log`, a ring of the last 500 errors, retries and timings, "included in backups". M6.1 builds it, along with the PRD §12.1 readouts in `/diagnostics`. TDD §5.7 times cold launch to a `writable` mark that didn't exist: `launch_perf` used `performance.now()` once the router started, before the page could take ink.
+- **Decision:**
+  - The log lives in memory first and in `kv` key `log` best-effort, debounced, **outside** the write queue (D-050's reasoning: when IndexedDB is failing the log would fail too, and it must never stall a stroke). Lines hold kinds, error names and numbers only.
+  - It is **not** written to backups: `PORTABLE_PREFS` (D-053) and the backup format are unchanged. `/diagnostics` shows the last 20 lines and saves the whole log as `morning-pages-log.txt` through the share sheet.
+  - `performance.mark('writable')` is set when the first page of the launch's first entry is painted. Only a launch that opens onto Today or an entry counts; `launch_perf` is bucketed from that mark, so a launch onto onboarding sends none.
+  - Save latency is timed from push to `complete` for unkeyed writes only (strokes, erases). Keyed writes (recovery mirrors, titles) coalesce or are dropped and would skew p99.
+  - Dropped frames are counted over the whole session in four buckets (12.5 / 25 / 50 ms, 1.5 refresh periods at 120 and 60 Hz), not from the last 2000 frames, so a 5-minute session is measured whole.
+- **Alternatives:** Writing the log into backups but never restoring it; rejected by the owner, since a log is about one device, and it would change the documented file format for little gain.
+- **Consequences:** **Amends TDD §14** ("included in backups"). A Replace restore clears the log along with `kv`. Error messages from the browser are logged as given (clipped to 200 characters); none of ours carry journal content.
+
+### D-061 · No 4-finger long-press for /diagnostics; it opens from Settings
+
+- **Date:** 2026-11-15 · **Status:** Accepted (owner decision, M6 planning)
+- **Context:** TDD §5.7 also toggles `/diagnostics` with a 4-finger long-press on the canvas. Fingers only scroll (D-042), and a resting palm already caused false gestures.
+- **Decision:** Not built. `/diagnostics` opens from Settings; its numbers are kept in memory, so the HUD reads the session after navigating there in the app.
+- **Alternatives:** Build the gesture; more code on the pen path for a screen the owner opens a few times.
+- **Consequences:** **Amends TDD §5.7.** Reloading `/diagnostics` resets the session numbers (the screen says so).
 
 ---
 

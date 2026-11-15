@@ -224,7 +224,7 @@ All budgets are measured on the reference device: iPad Pro 12.9″ (6th gen, M2)
 | Cold launch < 1.5 s | `performance.mark('writable')` vs. navigation start, logged locally |
 | App shell < 400 KB gz | CI script sums the gzipped **launch-critical** bytes: `index.html`, the entry and `/today` chunks, their CSS, and any preloaded font files. Fails the build over budget. Total service-worker precache size (all routes, fonts, prompt packs) is reported separately in the PR, not gated (D-027) |
 
-The owner develops on Windows, so Safari Web Inspector is not available. `/diagnostics` (also toggled by a 4-finger long-press on the canvas) is the primary on-device debugging tool (D-018).
+The owner develops on Windows, so Safari Web Inspector is not available. `/diagnostics`, opened from Settings, is the primary on-device debugging tool (D-018, D-061). Cold launch is timed to `performance.mark('writable')`, set when the launch's first page is painted (D-060).
 
 ### 5.8 Handwriting recognition model delivery (v2)
 
@@ -800,7 +800,7 @@ Service workers need a secure context, and the iPad reaching a dev machine by LA
 Two layers, and neither carries journal content:
 
 - **Fleet view (anonymous):** the Umami events in §9.4. `save_error`, `persist_status`, `storage_warning` and `launch_perf` show whether durability and speed hold up on other people's iPads.
-- **Device view (local only):** there is no remote error logging. `kv.log` is a ring buffer (last 500 events) of errors, queue retries, self-check results and launch timings. It is visible in `/diagnostics`, included in backups, and exportable as a text file for bug reports. Nothing is sent anywhere.
+- **Device view (local only):** there is no remote error logging. `kv.log` is a ring buffer (last 500 events) of errors, queue retries, self-check results and launch timings. It is visible in `/diagnostics` and exportable as a text file for bug reports. It is not included in backups (D-060). Nothing is sent anywhere.
 
 ---
 

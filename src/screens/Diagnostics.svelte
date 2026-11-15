@@ -1,16 +1,20 @@
 <script lang="ts">
-  // D-018: device facts, the ink HUD, finger calibration, and the state of saving (TDD 6, 14).
+  // D-018: device facts, the ink HUD, finger calibration, the state of saving and the local log
+  // (TDD 5.7, 6, 14).
   import type { Params } from '../router.ts';
   import { recovered } from '../store/session.ts';
   import { writes } from '../store/queue.ts';
-  import { checkStorage, storage } from '../store/storage.ts';
+  import { checkStorage, inkPerPage, storage } from '../store/storage.ts';
+  import { flushLog, logLines, logText } from '../store/log.ts';
+  import { shareFile } from '../store/share.ts';
   import { isInstalled } from '../pwa/standalone.ts';
-  import { inkMetrics } from '../ink/metrics.ts';
+  import { inkMetrics, pct } from '../ink/metrics.ts';
   import { PALM_SIZE } from '../ink/gestures.ts';
   import { version } from '../../package.json';
   let { params: _ }: { params: Params } = $props();
 
   const mb = (n: number) => (n >= 1_073_741_824 ? `${(n / 1_073_741_824).toFixed(1)} GB` : `${(n / 1_048_576).toFixed(1)} MB`);
+  const ms = (n: number) => `${n.toFixed(1)} ms`;
   const sw = !('serviceWorker' in navigator)
     ? 'Not available'
     : navigator.serviceWorker.controller
@@ -20,18 +24,43 @@
   void checkStorage(); // fresh numbers for this screen
   const saving = writes.state;
 
-  // TDD 5.7 budgets: first ink within one 120 Hz frame of app work, under 1 % dropped frames.
+  // PRD 12.1 / TDD 5.7 budgets, measured in this session. Kept in memory, so open this screen from
+  // the app, not with a reload. The app shell size and zero lost strokes are checked in CI.
   const ink = inkMetrics.summary();
+  const share = (n: number) => (ink.frames ? `${((n / ink.frames) * 100).toFixed(1)} %` : '0 %');
+  const later = 'Write a few lines on Today, then come back';
   const inkRows = ink.strokes
     ? [
-        ['First ink after pen-down', `${ink.firstInkP50.toFixed(1)} ms typical, ${ink.firstInkP95.toFixed(1)} ms slowest 5 %`],
+        ['First ink after pen-down', `${ms(ink.firstInkP50)} typical, ${ms(ink.firstInkP95)} slowest 5 % (budget 8 ms at 120 Hz)`],
         ['Frame rate while writing', `${Math.round(ink.hz)} Hz`],
-        ['Dropped frames while writing', `${ink.droppedPct.toFixed(1)} %`],
+        ['Dropped frames while writing', `${ink.droppedPct.toFixed(2)} % of ${ink.frames.toLocaleString()} frames over ${ink.writingMin.toFixed(1)} min (budget 1 % over 5 min)`],
+        ['Frame times while writing', `up to 12.5 ms ${share(ink.buckets[0]!)} · 25 ms ${share(ink.buckets[1]!)} · 50 ms ${share(ink.buckets[2]!)} · longer ${share(ink.buckets[3]!)}`],
+        ['Pencil samples', `${Math.round(ink.sampleHz)} per second`],
       ]
-    : [['Writing performance', 'Write a few lines on Today, then come back']];
+    : [['Writing performance', later]];
+
+  const lat = writes.latencies;
+  const opened = inkMetrics.lastOpen();
+  const launchAt = performance.getEntriesByName?.('writable')[0]?.startTime;
+  const pen = typeof PointerEvent === 'undefined' ? undefined : PointerEvent.prototype;
+  const timingRows = [
+    ['Saving a stroke', lat.length ? `${ms(pct(lat, 0.5))} typical, ${ms(pct(lat, 0.99))} slowest 1 %, over ${lat.length} saves (budget 1 s)` : later],
+    ['Launch to writable page', launchAt === undefined ? 'This launch opened on another screen' : `${Math.round(launchAt)} ms (budget 1.5 s from the Home Screen)`],
+    ['Opening an entry', opened ? `${Math.round(opened.ms)} ms for ${opened.pages} ${opened.pages === 1 ? 'page' : 'pages'} (budget 1 s for 30)` : 'Open a morning, then come back'],
+    ['Pencil features', [
+      pen && 'getCoalescedEvents' in pen ? 'coalesced samples' : 'no coalesced samples',
+      pen && 'getPredictedEvents' in pen ? 'predicted samples' : 'no predicted samples',
+      ink.hovered ? 'hover seen' : 'no hover seen yet',
+    ].join(' · ')],
+  ];
+  let perPage = $state('Measuring…');
+  inkPerPage().then(
+    (r) => (perPage = r.pages ? `${(r.avgBytes / 1024).toFixed(1)} KB average over ${r.pages} recent ${r.pages === 1 ? 'page' : 'pages'} (budget 150 KB)` : 'No ink saved yet'),
+    () => (perPage = 'Couldn’t read the journal'),
+  );
 
   // D-042 calibration: the last few finger touches on the page, their contact size, and why each
-  // did or didn't scroll. Kept in memory, so open this screen from the app, not with a reload.
+  // did or didn't scroll.
   const touches = inkMetrics.touches();
   const touchRow = [
     `Recent finger touches (palm limit ${PALM_SIZE} px)`,
@@ -60,8 +89,20 @@
     }
   }
 
+  // TDD 14: the local log, newest first here; saved oldest first as a text file. Only kinds,
+  // names and numbers: nothing from the journal.
+  const recent = logLines().slice(-20).reverse();
+  const when = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  function saveLog() {
+    // Straight from the tap: the share sheet needs a fresh gesture.
+    void shareFile(new File([logText()], 'morning-pages-log.txt', { type: 'text/plain' }));
+    void flushLog();
+  }
+
   const rows = $derived([
     ...inkRows,
+    ...timingRows,
+    ['Ink stored per page', perPage],
     touchRow,
     ['Version', version],
     ['Running as', isInstalled() ? 'Home Screen app' : 'Safari tab'],
@@ -75,6 +116,7 @@
 
 <section class="screen" aria-labelledby="diag-title">
   <h1 id="diag-title" class="screen-title">Diagnostics</h1>
+  <p class="lede">Writing numbers cover this session since the app opened, so come here from the app rather than reloading.</p>
   <dl>
     {#each rows as [term, value] (term)}
       <div>
@@ -87,6 +129,21 @@
       <dd>
         <span role="status">{bench}</span>
         <button type="button" onclick={runBench} disabled={benching}>Time it</button>
+      </dd>
+    </div>
+    <div>
+      <dt>Log on this iPad</dt>
+      <dd>
+        {#if recent.length}
+          <ol class="log">
+            {#each recent as line, i (i)}
+              <li><time datetime={new Date(line.at).toISOString()}>{when.format(line.at)}</time> {line.kind}: {line.detail}</li>
+            {/each}
+          </ol>
+        {:else}
+          Nothing logged yet
+        {/if}
+        <button type="button" onclick={saveLog}>Save log</button>
       </dd>
     </div>
   </dl>
@@ -110,6 +167,16 @@
   dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .log {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-sm);
+  }
+  .log time {
+    color: var(--ink-soft);
   }
   dd button {
     display: block;

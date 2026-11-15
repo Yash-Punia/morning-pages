@@ -5,6 +5,7 @@
 import { writable } from 'svelte/store';
 import { track } from '../analytics/track.ts';
 import { reopen } from './db.ts';
+import { log } from './log.ts';
 
 /** saved: everything is on disk · saving: writes in flight · held: writes keep failing ·
  *  full: the device is out of space. In the last two, ink is kept in memory and retried. */
@@ -46,9 +47,19 @@ export class WriteQueue {
     } = {},
   ) {}
 
+  /** How long recent unkeyed writes (strokes, erases) took from push to complete, in ms (TDD 5.7).
+   *  Keyed writes (recovery mirrors, titles) coalesce or are dropped, so they aren't timed. */
+  readonly latencies: number[] = [];
+
   /** Queue a write; resolves once its transaction has completed. */
   push(job: Job): Promise<void> {
-    return new Promise((done) => {
+    const t0 = performance.now();
+    return new Promise<void>((resolve) => {
+      const done = job.key ? resolve : () => {
+        this.latencies.push(performance.now() - t0);
+        if (this.latencies.length > 2000) this.latencies.shift();
+        resolve();
+      };
       // queue[0] may be in flight: only later items can be replaced.
       const i = job.key ? this.items.findIndex((q, idx) => idx > 0 && q.key === job.key) : -1;
       if (i > 0) {
@@ -119,4 +130,15 @@ export class WriteQueue {
 }
 
 /** The app's one queue (one per tab, TDD 6.1). Errors are counted anonymously (TDD 9.4). */
-export const writes = new WriteQueue({ reopen, onError: (kind, recovered) => track('save_error', { kind, recovered }) });
+export const writes = new WriteQueue({
+  reopen,
+  onError: (kind, recovered) => {
+    track('save_error', { kind, recovered });
+    log('save', recovered ? `${kind} error, saved on a retry` : `${kind} error, holding writes in memory`);
+  },
+});
+let was: SaveState = 'saved';
+writes.state.subscribe((s) => {
+  if ((was === 'held' || was === 'full') && s !== was) log('save', 'held writes are saving again');
+  was = s;
+});

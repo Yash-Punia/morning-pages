@@ -153,6 +153,7 @@ export class InkEngine {
     else if (e.pointerType === 'touch') this.gestures.move(e.pointerId, ...this.local(e), e.timeStamp, Math.max(e.width || 0, e.height || 0));
     else if (e.pointerType === 'pen' && !this.stroke && !this.erasing && e.buttons === 0) {
       this.hover = this.toDoc(e.clientX, e.clientY); // PEN-8: a ghost nib before contact
+      inkMetrics.hover();
       this.invalidate();
     }
   }
@@ -221,7 +222,7 @@ export class InkEngine {
     this.stroke = null;
     this.doc.addStroke(s.pts, this.preset.tool, this.preset.color, this.preset.size, s.id);
     if (!s.finger) this.gestures.penEnd(e.timeStamp); // palm guard after the Pencil, not after a finger
-    inkMetrics.penUp();
+    inkMetrics.penUp(s.pts.length, s.pts[s.pts.length - 1]![5] - s.pts[0]![5]);
     this.invalidate();
   }
 
@@ -313,6 +314,8 @@ export class InkEngine {
     this.frameId = 0;
     if (this.composite) { this.drawCommitted(); this.placeTitle(); }
     this.composite = false;
+    // The first painted page: the entry is open and takes ink (cold launch, 30-page open, TDD 5.7).
+    if (!this.opened && this.view.width > 0) { this.opened = true; inkMetrics.opened(this.doc.pages.length); }
     this.drawLive();
     const d = this.host.dataset; // readable state for tests and /diagnostics
     const v = this.view;
@@ -328,6 +331,7 @@ export class InkEngine {
     for (const [k, val] of Object.entries(state)) if (d[k] !== val) d[k] = val;
   }
 
+  private opened = false;
   private scrollTimer: ReturnType<typeof setTimeout> | undefined;
   private saveScroll = () => {
     clearTimeout(this.scrollTimer);
