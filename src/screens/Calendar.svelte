@@ -81,8 +81,9 @@
               {@const day = byDay.get(iso) ?? []}
               <td class:outside={d.getMonth() !== month.getMonth()}>
                 <button type="button" class="day" aria-pressed={iso === selected} aria-current={iso === todayIso ? 'date' : undefined}
-                        aria-label={dayLabel(iso, day.length)} onclick={() => select(iso)}>
-                  <span class="num" aria-hidden="true">{d.getDate()}</span>
+                        onclick={() => select(iso)}>
+                  <span class="num">{d.getDate()}</span>
+                  <span class="visually-hidden">, {dayLabel(iso, day.length)}</span>
                   {#if day[0]}
                     <span class="thumb" aria-hidden="true"><PageThumb thumb={day[0].thumb} paper={day[0].paper} width={44} /></span>
                     <span class="dot" aria-hidden="true"></span>

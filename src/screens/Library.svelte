@@ -65,10 +65,10 @@
       {#each week as d (d.getTime())}
         {@const iso = localDate(d)}
         <li>
-          <a href={`/calendar?day=${iso}`} aria-current={iso === todayIso ? 'date' : undefined}
-             aria-label={`${dayDate(iso)}${written.has(iso) ? ', written' : ''}`}>
-            <span class="wd" aria-hidden="true">{weekdayLetter(d)}</span>
-            <span class="num" aria-hidden="true">{d.getDate()}</span>
+          <span class="wd" aria-hidden="true">{weekdayLetter(d)}</span>
+          <a href={`/calendar?day=${iso}`} aria-current={iso === todayIso ? 'date' : undefined}>
+            <span class="num">{d.getDate()}</span>
+            <span class="visually-hidden">, {dayDate(iso)}{written.has(iso) ? ', written' : ''}</span>
             <span class="mark" class:on={written.has(iso)} aria-hidden="true"></span>
           </a>
         </li>
@@ -189,6 +189,11 @@
     padding: var(--space-2) 0;
     border-top: var(--hairline) solid var(--rule);
     border-bottom: var(--hairline) solid var(--rule);
+  }
+  .week li {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
   }
   .week a {
     display: grid;

@@ -25,6 +25,8 @@ export class InkEngine {
   readonly view = new Viewport();
   readonly doc: InkDoc;
   private dateLabel: string;
+  /** The canvas's accessible name before the page count ("Entry for …"). */
+  private label: string;
   private titleEl?: HTMLElement;
   preset: Preset = { tool: 'fountain', color: 'blueBlack', size: 5 };
   private tiles = new TileCache();
@@ -52,6 +54,7 @@ export class InkEngine {
   ) {
     this.doc = doc;
     this.titleEl = title;
+    this.label = host.getAttribute('aria-label') ?? 'Entry';
     this.dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
     this.view.docHeight = this.doc.height;
     this.doc.onChange = (box, added) => this.changed(box, added);
@@ -314,6 +317,10 @@ export class InkEngine {
     const d = this.host.dataset; // readable state for tests and /diagnostics
     const v = this.view;
     const state = { scrollY: v.sy.toFixed(1), zoom: v.zoom.toFixed(3), pages: String(this.doc.pages.length), strokes: String(this.doc.strokeCount) };
+    if (d.pages !== state.pages) {
+      const n = Math.max(1, this.doc.pages.length - 1); // the blank page below isn't counted
+      this.host.setAttribute('aria-label', `${this.label}, ${n} ${n === 1 ? 'page' : 'pages'}`);
+    }
     if (d.scrollY !== state.scrollY) {
       clearTimeout(this.scrollTimer);
       this.scrollTimer = setTimeout(this.saveScroll, 400); // once scrolling settles

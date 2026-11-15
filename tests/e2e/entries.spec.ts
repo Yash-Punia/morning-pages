@@ -72,6 +72,6 @@ test('the Library opens with today, this week and recent mornings (M4.5)', async
   await page.getByRole('textbox', { name: 'Entry title' }).fill('Grey sky');
   await library(page);
   await expect(page.getByRole('link', { name: 'Continue today' })).toBeVisible();
-  await expect(week.locator('[aria-current="date"]')).toHaveAttribute('aria-label', /, written$/);
+  await expect(week.locator('[aria-current="date"]')).toHaveAccessibleName(/, written$/);
   await expect(page.locator('section[aria-labelledby="recent-heading"] li')).toContainText('Grey sky');
 });
