@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- D-059: minimal repro, no app code. Playwright WebKit 1.65 on Windows (headless and headed)
+     crashes ("Page crashed") when a real mouse click starts a view transition that turns the
+     root from non-scrollable into scrollable. Keyboard Enter or a script click(): no crash.
+     Starting tall, ending short, or `html { overflow-y: scroll }`: no crash.
+     Run: page.setViewportSize({ width: 1366, height: 1024 }); page.goto(this file); page.click('#go'). -->
+<html>
+  <head><style>body { margin: 0 }</style></head>
+  <body>
+    <button id="go">Go</button>
+    <main id="m"><div style="height: 100px">old</div></main>
+    <script>
+      document.getElementById('go').addEventListener('click', () => {
+        document.startViewTransition(() => {
+          document.getElementById('m').innerHTML = '<div style="height: 1100px">new</div>';
+        });
+      });
+    </script>
+  </body>
+</html>
