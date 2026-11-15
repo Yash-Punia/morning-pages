@@ -68,6 +68,7 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 | D-056 | 2026-11-15 | The pre-migration backup screen waits for the first schema change | Accepted |
 | D-057 | 2026-11-15 | Backup reminders count from the first morning; "Not now" waits a day | Accepted |
 | D-058 | 2026-11-15 | The 60-second backup budget is measured on the device, from /diagnostics | Accepted |
+| D-059 | 2026-11-15 | The root always scrolls, so a view transition never makes it a scroller | Accepted |
 
 ---
 
@@ -742,6 +743,14 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - The iPad numbers, both directions, are the owner check before merging M5.
   - "Time it" briefly needs about 150 MB free.
   - The whole backup file is held in the worker's memory while it's read. On older iPads, very large journals are the ceiling (TDD 8.2).
+
+### D-059 · The root always scrolls, so a view transition never makes it a scroller
+
+- **Date:** 2026-11-15 · **Status:** Accepted
+- **Context:** Playwright's WebKit on Windows crashed ("Page crashed") on a mouse click into a Library taller than the window. It was first seen in `calendar.spec.ts` after M5's backup note made the Library taller. The crash needs three things together: a real mouse click, the router's view transition, and a root that goes from not scrollable to scrollable inside that transition. It happens headless and headed. Keyboard Enter, a script `click()`, reduced motion, a tall page from the start or a page that gets shorter never crash. It reproduces with no app code (`spikes/webkit-vt-crash/repro.html`), so it is an engine bug. In the app, the spine links' colour transition makes it happen every time. Not checked on Linux or macOS WebKit, or on an iPad.
+- **Decision:** `html { overflow-y: scroll }` in `base.css`. The root is a scroller from the first frame, so a route change never creates one mid-transition. A regression test in `calendar.spec.ts` opens a Library with two weeks of mornings by mouse and taps its week strip.
+- **Alternatives:** Skipping the view transition in tests, or on Windows only: this hides route changes from e2e and leaves the crash. Dropping the spine links' colour transition: in the app this avoided the crash, but the plain-HTML repro crashes without any transition. Snoozing the backup note in tests: this only hides the crash for one screen.
+- **Consequences:** iPadOS draws overlay scrollbars, so nothing changes on screen. A desktop browser with classic scrollbars shows an empty scrollbar gutter on short screens. The Writing screen is exactly one viewport tall and does not scroll. Check on the device (TDD 13.2) that the root rubber-band doesn't fight a pen stroke.
 
 ---
 
