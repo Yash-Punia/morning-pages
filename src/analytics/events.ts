@@ -14,6 +14,13 @@ export const SCHEMA = {
   storage_warning: { pct: ['80', '95'] },
   // TDD 9.4 lists the version; D-029 allows no free-text values, so this counts updates only.
   update_applied: {},
+  // TDD 9.4's "list of tools" as enums (D-029 allows no lists): which pens, and whether erasing.
+  session_end: {
+    minutes: ['0-5', '5-15', '15-30', '30+'],
+    pages: ['1', '2-3', '4+'],
+    tools: ['ballpoint', 'fountain', 'both'],
+    eraser: [true, false],
+  },
 } as const satisfies Record<string, Record<string, readonly (string | boolean)[]>>;
 
 export type EventName = keyof typeof SCHEMA;
@@ -33,6 +40,7 @@ export const EVENT_DESCRIPTIONS: Record<EventName, string> = {
   persist_status: 'Whether iPadOS agreed to protect the app’s storage.',
   storage_warning: 'That storage passed 80 % or 95 % full.',
   update_applied: 'That a new version of the app was installed.',
+  session_end: 'When you leave after writing: roughly how long you wrote, how many pages, which pens and whether you erased, in rough ranges.',
 };
 /** Page views carry only the screen's template, never which entry. */
 export const PAGE_VIEW_DESCRIPTION = 'Which screen opens, by its kind (like “Calendar” or “an entry”), never which entry.';
@@ -45,6 +53,17 @@ export function sanitize(name: EventName, data: Record<string, unknown> = {}): R
   for (const [key, value] of Object.entries(data))
     if (allowed[key]?.includes(value as string | boolean)) out[key] = value as string | boolean;
   return Object.keys(out).length ? out : undefined;
+}
+
+/** A writing session, bucketed for session_end (exact minutes and counts are never sent). */
+export function sessionBuckets(ms: number, pages: number, tools: Set<string>, erased: boolean): EventProps<'session_end'> {
+  const min = ms / 60_000;
+  return {
+    minutes: min < 5 ? '0-5' : min < 15 ? '5-15' : min < 30 ? '15-30' : '30+',
+    pages: pages <= 1 ? '1' : pages <= 3 ? '2-3' : '4+',
+    tools: tools.has('ballpoint') && tools.has('fountain') ? 'both' : tools.has('fountain') ? 'fountain' : 'ballpoint',
+    eraser: erased,
+  };
 }
 
 export const launchBucket = (ms: number): EventProps<'launch_perf'>['ms'] =>

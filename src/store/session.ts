@@ -4,7 +4,7 @@
 // (ENT-1).
 import { InkDoc } from '../ink/page.ts';
 import { pointsBox } from '../ink/stroke.ts';
-import type { Page, PaperStyle, StrokeOp } from '../ink/types.ts';
+import type { Op, Page, PaperStyle, StrokeOp } from '../ink/types.ts';
 import { inkPaper } from '../settings.ts';
 import { fromRecord, toRecord } from './codec.ts';
 import { db, DB_VERSION, dbName, DEFAULT_JOURNAL, type PageRef, type RecoveryRec, type WriteCtx } from './db.ts';
@@ -13,6 +13,7 @@ import { commitOp, commitPaper, commitTitle, entryOn, purgeDeleted, readEntry } 
 import { writes } from './queue.ts';
 import { writable } from 'svelte/store';
 import { track } from '../analytics/track.ts';
+import { sessionBuckets } from '../analytics/events.ts';
 
 const TITLE_DEBOUNCE_MS = 500;
 
@@ -84,6 +85,7 @@ function attach(doc: InkDoc, stored = true): InkDoc {
   };
   doc.onOp = (op, page) => {
     started(doc.input);
+    sessionWrote(op, page.id);
     const ctx = { entry: doc.entry, page: pageRef(page) };
     const rec = toRecord(op);
     writes.drop(`rec:${op.id}`); // its recovery mirror is no longer needed (TDD 6.3)
@@ -176,7 +178,24 @@ export function forgetOpened() {
   opened.clear();
 }
 
+// session_end (TDD 9.4): one summary when the app is hidden after writing, never while writing.
+let session: { since: number; pages: Set<string>; tools: Set<string>; erased: boolean } | undefined;
+function sessionWrote(op: Op, pageId: string) {
+  session ??= { since: Date.now(), pages: new Set(), tools: new Set(), erased: false };
+  session.pages.add(pageId);
+  if (op.kind === 'stroke') session.tools.add(op.tool);
+  else if (op.kind === 'erase') session.erased = true;
+}
+function sessionEnded() {
+  if (!session) return;
+  const s = session;
+  session = undefined;
+  track('session_end', sessionBuckets(Date.now() - s.since, s.pages.size, s.tools, s.erased));
+}
+
 if (typeof window !== 'undefined') {
+  addEventListener('pagehide', sessionEnded);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sessionEnded(); });
   addEventListener('pagehide', flushTitle);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushTitle(); });
   if (import.meta.env.VITE_E2E === '1') Object.assign(window, { __store: { db, writes, saved } });
