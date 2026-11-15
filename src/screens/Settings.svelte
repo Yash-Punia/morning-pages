@@ -61,7 +61,7 @@
         {$backup.step === 'ready' ? 'Save backup' : $backup.step === 'building' ? 'Preparing…' : 'Back up now'}
       </button>
       {#if $backup.step === 'building'}
-        <progress max="1" value={$backup.progress} aria-label="Preparing your backup"></progress>
+        <progress class="rule-progress" max="1" value={$backup.progress} aria-label="Preparing your backup"></progress>
       {/if}
     </li>
     <li>
@@ -76,6 +76,15 @@
           {/each}
         </select>
       </label>
+    </li>
+    <li>
+      <a href="/restore">
+        <span class="text">
+          <span class="label">Restore from a backup</span>
+          <span class="hint">Bring back pages from a .morningpages file</span>
+        </span>
+        <Icon name="arrow-right" size={20} />
+      </a>
     </li>
   </ul>
   <h2 id="storage">Storage</h2>
@@ -263,57 +272,13 @@
     color: var(--ink-soft);
   }
 
-  /* The backup pill: outlined while it builds the file, solid ink once it's ready to save. */
-  .pill {
-    flex: none;
-    min-height: var(--target);
-    padding: 0 var(--space-5);
-    border: 0;
-    border-radius: var(--radius-pill);
-    background: none;
-    box-shadow: inset 0 0 0 1.5px var(--ink);
-    color: var(--ink);
-    font: inherit;
-    font-weight: 600;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: background-color var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out);
-  }
-  .pill.solid {
-    background: var(--ink);
-    color: var(--paper);
-  }
-  .pill.solid:hover {
-    background: color-mix(in oklch, var(--ink) 88%, var(--accent));
-  }
-  .pill:disabled {
-    box-shadow: none;
-    background: var(--linen-deep);
-    color: var(--ink-soft);
-    cursor: default;
-  }
-  /* Progress runs along the row's bottom rule: ink over the rule, with no animation of its own. */
+  /* The backup's progress runs along the row's bottom rule. */
   .progressed {
     position: relative;
   }
-  progress {
-    appearance: none;
+  .progressed progress {
     position: absolute;
     inset: auto 0 calc(-1 * var(--hairline)) 0;
-    width: 100%;
-    height: 2px;
-    border: 0;
-    background: var(--rule);
-    color: var(--ink);
-  }
-  progress::-webkit-progress-bar {
-    background: var(--rule);
-  }
-  progress::-webkit-progress-value {
-    background: var(--ink);
-  }
-  progress::-moz-progress-bar {
-    background: var(--ink);
   }
   .text {
     display: grid;

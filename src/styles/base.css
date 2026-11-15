@@ -94,6 +94,79 @@ textarea {
   }
 }
 
+/* Pills (DESIGN.md Buttons): outlined ink for actions beside a screen's one primary, solid ink
+   for the primary itself. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-height: var(--target);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-quick) var(--ease-out),
+    color var(--dur-quick) var(--ease-out);
+}
+.pill:hover {
+  background: color-mix(in oklch, var(--linen) 55%, transparent);
+}
+.pill.solid {
+  box-shadow: none;
+  background: var(--ink);
+  color: var(--paper);
+}
+.pill.solid:hover {
+  background: color-mix(in oklch, var(--ink) 88%, var(--accent));
+}
+.pill:disabled {
+  box-shadow: none;
+  background: var(--linen-deep);
+  color: var(--ink-soft);
+  cursor: default;
+}
+/* A quiet way out beside a pill: an underlined text button. */
+.text-button {
+  min-height: var(--target);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.text-button:hover {
+  color: var(--ink);
+}
+
+/* Progress along a rule: ink over the rule, with no animation of its own. */
+progress.rule-progress {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 2px;
+  border: 0;
+  background: var(--rule);
+}
+progress.rule-progress::-webkit-progress-bar {
+  background: var(--rule);
+}
+progress.rule-progress::-webkit-progress-value {
+  background: var(--ink);
+}
+progress.rule-progress::-moz-progress-bar {
+  background: var(--ink);
+}
+
 /* Route changes: a quick cross-fade inside the 200 ms motion ceiling (PRD 10.3). */
 ::view-transition-old(root),
 ::view-transition-new(root) {

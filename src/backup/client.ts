@@ -10,7 +10,10 @@ import { localDate, saved } from '../store/session.ts';
 import { shareFile, type ShareOutcome } from '../store/share.ts';
 import { checkStorage } from '../store/storage.ts';
 import type { BackupRequest } from '../workers/backup.ts';
+import { thumbsSettled } from '../store/thumbs.ts';
 import { EXTENSION, MIME, PORTABLE_PREFS, type Manifest } from './format.ts';
+import type { Preview } from './read.ts';
+import { RESTORE_MARK, type RestoreMode } from './restore.ts';
 
 export interface Built { file: File; manifest: Manifest }
 export interface Bench { ops: number; ptsBytes: number; seedMs: number; buildMs: number; bytes: number }
@@ -59,7 +62,34 @@ export async function buildBackupFile(onProgress?: Progress): Promise<Built> {
 /** /diagnostics: time a backup of a sample year, in a throwaway database (never the journal). */
 export const benchBackup = (onProgress?: Progress, entries?: number) => run<Bench>({ kind: 'bench', entries }, 'bench', onProgress);
 
-// --- The two-tap flow (D-020) ---------------------------------------------------------------
+// --- Restore (TDD 8.3, BAK-4) -----------------------------------------------------------------
+
+/** Check a backup file in the worker and say what's inside. Rejects with a ReadProblem name. */
+export const previewBackup = (file: File) => run<{ preview: Preview }>({ kind: 'preview', file }, 'preview').then((m) => m.preview);
+
+/** Whether this iPad has a journal a Replace would remove (Recently Deleted counts). */
+export const hasJournal = () => db().entries.count().then((n) => n > 0);
+
+/** A restore was started and never finished (Library notice). */
+export const restoreUnfinished = () => db().kv.get(RESTORE_MARK).then((r) => !!r, () => false);
+
+/**
+ * Restore a backup, then reload into the Library: pages held in memory, and their seq counters,
+ * are stale after a restore, so the app starts again from disk. Preferences come along on a
+ * Replace, or into an empty journal (owner decision, M5); a Merge keeps this iPad's.
+ */
+export async function restoreBackup(file: File, mode: RestoreMode, onProgress?: Progress) {
+  const empty = !(await hasJournal());
+  await Promise.all([saved(), thumbsSettled()]);
+  const { prefs } = await run<{ prefs: { key: string; value: string }[] }>({ kind: 'restore', file, dbName: dbName(), mode }, 'restored', onProgress);
+  if (mode === 'replace' || empty)
+    for (const p of prefs) {
+      try { localStorage.setItem(p.key, p.value); } catch { /* private mode: keep this iPad's */ }
+    }
+  location.replace('/library');
+}
+
+// --- The two-tap flow (D-020)---------------------------------------------------------------
 
 export type BackupState =
   | { step: 'idle'; outcome?: Exclude<ShareOutcome, 'cancelled'> }

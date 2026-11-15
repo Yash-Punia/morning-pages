@@ -6,7 +6,10 @@
   import { listEntries, type EntryRow as Row } from '../store/entries.ts';
   import { localDate, saved } from '../store/session.ts';
   import { storage } from '../store/storage.ts';
-  import { thumbsSettled } from '../store/thumbs.ts';
+  import { redrawRestored, thumbsSettled } from '../store/thumbs.ts';
+  import { restoreUnfinished } from '../backup/client.ts';
+  import { route } from '../router.ts';
+  import { get } from 'svelte/store';
   import { applyUpdate, needRefresh } from '../pwa/register.ts';
   import { track } from '../analytics/track.ts';
 
@@ -32,6 +35,11 @@
   // more than a second: writes may be held (TDD 6.2).
   const settled = Promise.all([saved(), thumbsSettled()]);
   const rows: Promise<Row[]> = Promise.race([settled, new Promise((r) => setTimeout(r, 1000))]).then(() => listEntries(db(), { thumbs: true }));
+  // BAK-4: a restore that was cut off says so here until the same file is restored again.
+  let unfinished = $state(false);
+  void restoreUnfinished().then((v) => (unfinished = v));
+  // Restored pages get their thumbnails at idle, pausing whenever a page is open for writing.
+  void rows.then(() => redrawRestored(() => ['/today', '/entry/:id'].includes(get(route)?.template ?? ''))).catch(() => {});
   const href = (all: Row[], e: Row) => (e.id === all.find((r) => r.entryDate === todayIso)?.id ? '/today' : `/entry/${e.id}`);
 </script>
 
@@ -39,6 +47,12 @@
   <h1 id="library-title" class="screen-title">Library</h1>
 
   <div class="banners">
+    {#if unfinished}
+      <div class="banner update" role="status">
+        <p><strong>A restore didn’t finish.</strong> Choose the same backup file again to finish it.</p>
+        <a class="pill" href="/restore">Finish the restore</a>
+      </div>
+    {/if}
     {#if $needRefresh}
       <div class="banner update" role="status">
         <p><strong>A new version is ready.</strong> {updating ? 'Updating once everything you’ve written is saved…' : 'It takes a moment and keeps every page.'}</p>

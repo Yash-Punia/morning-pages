@@ -4,11 +4,17 @@ import Dexie from 'dexie';
 import { buildBackup } from '../backup/write.ts';
 import { BENCH_DB, seedSample, SAMPLE_YEAR } from '../backup/bench.ts';
 import { MIME } from '../backup/format.ts';
+import { BackupProblem, readBackup } from '../backup/read.ts';
+import { applyRestore, type RestoreMode } from '../backup/restore.ts';
 import { DB_VERSION, JournalDB } from '../store/db.ts';
 import { version } from '../../package.json';
 
 export type BackupRequest =
   | { kind: 'build'; dbName: string; prefs: Record<string, string> }
+  /** Check a backup file and say what's in it; nothing is written. */
+  | { kind: 'preview'; file: File }
+  /** Check it again and restore it, reporting progress per record. */
+  | { kind: 'restore'; file: File; dbName: string; mode: RestoreMode }
   /** Seed a sample journal in a throwaway database, time its backup, then delete it. */
   | { kind: 'bench'; entries?: number };
 
@@ -27,6 +33,18 @@ addEventListener('message', async (e: MessageEvent<BackupRequest>) => {
       } finally {
         d.close();
       }
+    } else if (req.kind === 'preview') {
+      const { preview } = await readBackup(new Uint8Array(await req.file.arrayBuffer()));
+      postMessage({ kind: 'preview', preview });
+    } else if (req.kind === 'restore') {
+      const { records } = await readBackup(new Uint8Array(await req.file.arrayBuffer()));
+      const d = new JournalDB(req.dbName);
+      try {
+        await applyRestore(d, records, req.mode, progress('restore'));
+      } finally {
+        d.close();
+      }
+      postMessage({ kind: 'restored', prefs: records.prefs });
     } else {
       await Dexie.delete(BENCH_DB);
       const d = new JournalDB(BENCH_DB);
@@ -46,6 +64,6 @@ addEventListener('message', async (e: MessageEvent<BackupRequest>) => {
       postMessage(result);
     }
   } catch (err) {
-    postMessage({ kind: 'error', error: String(err) });
+    postMessage({ kind: 'error', error: err instanceof BackupProblem ? err.problem : String(err) });
   }
 });

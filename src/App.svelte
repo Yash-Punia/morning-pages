@@ -14,7 +14,7 @@
     { href: '/settings', label: 'Settings', icon: 'settings' },
   ];
   const BARE = ['/onboarding']; // first run: no navigation yet
-  const UNDER: Record<string, string> = { '/privacy': '/settings', '/diagnostics': '/settings', '/deleted': '/library' };
+  const UNDER: Record<string, string> = { '/privacy': '/settings', '/diagnostics': '/settings', '/restore': '/settings', '/deleted': '/library' };
 
   const trial = !isInstalled(); // STO-1: a Safari tab, not the Home Screen app
   let open = $state(false);

@@ -3,12 +3,15 @@
 // worker and saved. Thumbnails are a convenience, so they are written best-effort, *outside* the
 // durable write queue: a thumbnail that can't be saved must never hold up a stroke. Thumbnails are drawn in the Paper theme, like a
 // photo of the page; ink is the writer's, so a page always looks like itself.
-import type { InkDoc } from '../ink/page.ts';
+import { InkDoc } from '../ink/page.ts';
+import { THUMBS_PENDING } from '../backup/restore.ts';
+import { fromRecord } from './codec.ts';
+import { readEntry } from './entries.ts';
 import type { PaperColors } from '../ink/paper.ts';
 import type { InkId } from '../ink/types.ts';
 import { drawThumb, THUMB_HEIGHT, THUMB_WIDTH, type ThumbJob } from '../ink/thumb.ts';
 import { canvasColor } from '../ink/colors.ts';
-import { inkSmoothing } from '../settings.ts';
+import { inkPaper, inkSmoothing } from '../settings.ts';
 import { db } from './db.ts';
 import { saved } from './session.ts';
 
@@ -95,6 +98,31 @@ export function refreshThumbs(doc: InkDoc, render: Render = inWorker, palette: (
   running.set(doc, next);
   latest = Promise.all([latest, next]).then(() => {});
   return next;
+}
+
+/**
+ * After a restore (TDD 8.3 step 5), pages arrive without thumbnails: redraw them one entry at a
+ * time at idle, until `stop()` says the writer is back on a page. Placeholders show until then;
+ * the flag stays until every entry is done, so a later Library visit carries on.
+ */
+let redrawing: Promise<void> | undefined;
+export function redrawRestored(stop: () => boolean, render: Render = inWorker, palette: () => Palette = paperPalette): Promise<void> {
+  // One pass at a time: a second Library visit joins the one already running.
+  return (redrawing ??= redraw(stop, render, palette).finally(() => (redrawing = undefined)));
+}
+
+async function redraw(stop: () => boolean, render: Render, palette: () => Palette) {
+  if (!(await db().kv.get(THUMBS_PENDING).catch(() => undefined))) return;
+  const ids = await db().entries.toCollection().primaryKeys();
+  for (const id of ids) {
+    await new Promise((r) => ('requestIdleCallback' in globalThis ? requestIdleCallback(r, { timeout: 1000 }) : setTimeout(r, 20)));
+    if (stop()) return;
+    const saved = await readEntry(db(), id);
+    if (!saved || saved.pages.every((p) => p.thumbOps === p.opCount)) continue;
+    const pages = saved.pages.map((p) => ({ id: p.id, index: p.index, paper: p.paper, size: 'A5' as const, height: p.height }));
+    await refreshThumbs(InkDoc.load(saved.entry, saved.entry.title ?? '', pages, saved.ops.map(fromRecord), inkPaper.get()), render, palette);
+  }
+  await db().kv.delete(THUMBS_PENDING);
 }
 
 async function refresh(doc: InkDoc, render: Render, palette: () => Palette) {
