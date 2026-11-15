@@ -55,6 +55,12 @@ async function lastSeq(d: JournalDB, pageId: string) {
   return last?.seq ?? 0;
 }
 
+/** The oldest saved morning's date, or undefined for an empty journal (the Timeline's end). */
+export async function oldestDate(d: JournalDB): Promise<string | undefined> {
+  const first = await d.entries.orderBy('entryDate').filter((e) => !e.deletedAt).first();
+  return first?.entryDate;
+}
+
 /** The latest entry for a local date in a journal (ENT-2's "+" for more arrives in M4). */
 export async function entryOn(d: JournalDB, entryDate: string, journalId = DEFAULT_JOURNAL): Promise<EntryRec | undefined> {
   const all = await d.entries.where('[journalId+entryDate]').equals([journalId, entryDate]).toArray();
@@ -90,18 +96,23 @@ export async function listEntries(d: JournalDB, opts: { from?: string; to?: stri
       : d.entries.toCollection();
     const entries = (await range.toArray()).filter((e) => !e.deletedAt);
     entries.sort((a, b) => (a.entryDate < b.entryDate ? 1 : a.entryDate > b.entryDate ? -1 : b.createdAt - a.createdAt));
-    return Promise.all(entries.map(async (e) => {
-      const first = await d.pages.where('[entryId+index]').equals([e.id, 0]).first();
-      return {
-        id: e.id,
-        entryDate: e.entryDate,
-        title: e.title ?? '',
-        pages: Math.max(1, await d.pages.where('entryId').equals(e.id).count()),
-        createdAt: e.createdAt,
-        updatedAt: e.updatedAt,
-        paper: first?.paper ?? 'lined-college',
-        thumb: opts.thumbs ? first?.thumb : undefined,
-      };
+    // One query for all their pages, counted in memory: per-entry queries cost a round trip each.
+    const pages = await d.pages.where('entryId').anyOf(entries.map((e) => e.id)).toArray();
+    const count = new Map<string, number>();
+    const first = new Map<string, PageRec>();
+    for (const p of pages) {
+      count.set(p.entryId, (count.get(p.entryId) ?? 0) + 1);
+      if (p.index === 0) first.set(p.entryId, p);
+    }
+    return entries.map((e) => ({
+      id: e.id,
+      entryDate: e.entryDate,
+      title: e.title ?? '',
+      pages: Math.max(1, count.get(e.id) ?? 0),
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+      paper: first.get(e.id)?.paper ?? 'lined-college',
+      thumb: opts.thumbs ? first.get(e.id)?.thumb : undefined,
     }));
   });
 }

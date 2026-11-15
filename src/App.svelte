@@ -10,6 +10,7 @@
     { href: '/today', label: 'Today', icon: 'today' },
     { href: '/library', label: 'Library', icon: 'library' },
     { href: '/calendar', label: 'Calendar', icon: 'calendar' },
+    { href: '/timeline', label: 'Timeline', icon: 'timeline' },
     { href: '/settings', label: 'Settings', icon: 'settings' },
   ];
   const BARE = ['/onboarding']; // first run: no navigation yet

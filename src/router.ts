@@ -14,6 +14,7 @@ const ROUTES: [template: string, title: string, load: Load][] = [
   ['/entry/:id', 'Entry', async () => ({ default: Entry })],
   ['/library', 'Library', () => import('./screens/Library.svelte')],
   ['/calendar', 'Calendar', () => import('./screens/Calendar.svelte')],
+  ['/timeline', 'Timeline', () => import('./screens/Timeline.svelte')],
   ['/settings', 'Settings', () => import('./screens/Settings.svelte')],
   ['/onboarding', 'Welcome', () => import('./screens/Onboarding.svelte')],
   ['/privacy', 'Privacy', () => import('./screens/Privacy.svelte')],
