@@ -62,6 +62,12 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 | D-050 | 2026-11-15 | Page thumbnails: drawn on close, stored as bytes, never in the durable queue | Accepted |
 | D-051 | 2026-11-15 | Theme follows the iPad; the trial strip is fixed and laid out in CSS | Accepted |
 | D-052 | 2026-11-15 | Two analytics refinements forced by the allowlist | Accepted |
+| D-053 | 2026-11-15 | Backups carry portable preferences, applied by a Replace or into an empty journal | Accepted |
+| D-054 | 2026-11-15 | Merge rules: newest wins with ties kept here, pages renumbered, checksums in fold order | Accepted |
+| D-055 | 2026-11-15 | Replace needs a saved safety copy (or an explicit skip); every restore is resumable and reloads | Accepted |
+| D-056 | 2026-11-15 | The pre-migration backup screen waits for the first schema change | Accepted |
+| D-057 | 2026-11-15 | Backup reminders count from the first morning; "Not now" waits a day | Accepted |
+| D-058 | 2026-11-15 | The 60-second backup budget is measured on the device, from /diagnostics | Accepted |
 
 ---
 
@@ -665,6 +671,68 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - `session_end` has `tools: ballpoint | fountain | both` and `eraser: true | false` instead of "a list of tool ids".
   - The privacy page's event list is a typed map keyed by event, so an event can't ship without its description.
 - **Consequences:** Release uptake is a count of updates, not per version. The privacy page matches the code by construction.
+
+### D-053 · Backups carry portable preferences, applied by a Replace or into an empty journal
+
+- **Date:** 2026-11-15 · **Status:** Accepted (owner decision, M5 planning; amends D-047's consequence)
+- **Context:** D-047 keeps preferences in `localStorage`, so a backup restored onto a new iPad brought back every page but not the presets, paper or theme.
+- **Decision:**
+  - `records/kv.ndjson` carries the portable preferences: paper, smoothing, finger drawing, the toolbar (presets, dock, custom inks), the theme, the analytics choice and the reminder days.
+  - Device state never travels: scroll positions, once-markers, onboarding and `lastBackupAt`.
+  - A **Replace**, or any restore into a journal that is empty, applies them. A **Merge** keeps this iPad's.
+- **Alternatives:** Pages only (D-047 as it was); always applying them (a merge would quietly change this iPad's pen).
+- **Consequences:** A new iPad comes back as it was left. Only listed keys are accepted on restore; any other key rejects the file.
+
+### D-054 · Merge rules: newest wins with ties kept here, pages renumbered, checksums in fold order
+
+- **Date:** 2026-11-15 · **Status:** Accepted (refines TDD 8.3)
+- **Context:** TDD 8.3 says "newest `updatedAt` wins". Three changes didn't move `updatedAt` (delete, undelete, paper), two diverged copies can hold different pages at the same index, and a page's checksum is order-dependent.
+- **Decision:**
+  - Deleting, restoring from Recently Deleted and changing paper now set `updatedAt` (a `fix:` commit before 5.3).
+  - Records merge by id; the newer `updatedAt` wins, and **a tie keeps this iPad's copy**.
+  - An incoming page whose `(entryId, index)` slot is held here by another page goes **after this iPad's pages**, so stored pages keep running 0…n−1 (D-046). A page already here keeps its index even if the backup's copy is newer.
+  - Each touched page's `opCount` and `checksum` are recomputed from its ops in fold order (`seq`, `createdAt`, `id`), the order `InkDoc.load` reads them in.
+  - The writer's `seq` needs no reset: `commitOp` reads the page's last `seq` from the store.
+- **Consequences:** A merged entry may show two copies' pages one after the other; nothing is lost. The M11 self-check agrees with merged pages.
+
+### D-055 · Replace needs a saved safety copy (or an explicit skip); every restore is resumable and reloads
+
+- **Date:** 2026-11-15 · **Status:** Accepted (owner decision, M5 planning)
+- **Context:** Replace clears the journal before importing in batches of 500. A wrong file, or iOS killing the app midway, could lose the journal.
+- **Decision:**
+  - When this iPad has a journal, Replace first asks for a backup of it. "Replace now" unlocks only once that copy is shared or downloaded; "Replace without saving a copy" is the explicit way past.
+  - `kv.restoreInProgress` is written before the first write and cleared after the last. While it's set, the Library says "A restore didn't finish" and links to Restore. Every write is idempotent, so restoring the same file again completes it.
+  - After any restore the app reloads into the Library: the entries held in memory and their `seq` counters are stale, and the next stroke would otherwise recreate cleared rows.
+  - Thumbnails aren't in backups (D-050). `kv.thumbsPending` starts an idle pass from the Library that redraws them one entry at a time and pauses while a page is open for writing.
+- **Alternatives:** Only offering the copy (TDD 8.3's wording); replacing in one transaction (too large for a year of ink on iPad).
+- **Consequences:** Replace takes two more taps when there's something to lose.
+
+### D-056 · The pre-migration backup screen waits for the first schema change
+
+- **Date:** 2026-11-15 · **Status:** Accepted (defers part of TDD 7.4 and DUR-6)
+- **Context:** TDD 7.4 offers a backup on an "Updating your journal" screen before a schema upgrade. No v2 schema ships in M5.
+- **Decision:** The screen is built with the first schema change. The backup builder already reads tables by name, so it works on the dynamic-mode connection `prepareOpen` hands to `beforeMigrate`; `noBackupYet` stays until then.
+- **Consequences:** The first schema change must ship this screen in the same milestone. Recorded here so it isn't missed.
+
+### D-057 · Backup reminders count from the first morning; "Not now" waits a day
+
+- **Date:** 2026-11-15 · **Status:** Accepted (owner decision on "Not now", M5 shape)
+- **Decision:**
+  - The Library's note shows when the last backup is older than the chosen days (1, 3, 7, 14 or 30; default 7). A journal never backed up counts from its first morning; an empty journal is never reminded.
+  - "Not now" hides it until the next local day.
+  - `lastBackupAt` is the backup's own `createdAt`, written only once the file is shared or downloaded, so a file built and saved later is never counted fresher than it is.
+- **Consequences:** A new writer sees the first reminder on their eighth morning.
+
+### D-058 · The 60-second backup budget is measured on the device, from /diagnostics
+
+- **Date:** 2026-11-15 · **Status:** Accepted (how 5.1's "Done when" is checked)
+- **Context:** Headless WebKit on Windows writes about 15 ms per IndexedDB row from a page, so a year of ink (about 360,000 strokes) can't be seeded inside a CI time limit.
+- **Decision:**
+  - The backup worker reads tables in pages of 5,000 rows (`getAll`), five times faster than a cursor in WebKit.
+  - `/diagnostics` has "Backup of a sample year": the worker writes a sample year to a throwaway database, times its backup, and deletes it. It never touches the journal.
+  - CI runs the same path at 30 mornings and gates only on the page's longest frame gap (< 250 ms). The time is reported.
+  - Measured on the Windows test machine, headless WebKit: a full year, 361,350 strokes (98 MB of points), built a 46.7 MB file in 16.8 s, with a longest frame gap of 66 ms.
+- **Consequences:** The iPad number is the owner check before merging M5.
 
 ---
 
