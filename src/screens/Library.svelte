@@ -10,7 +10,6 @@
   import { backup, backupAction, lastBackupAt, loadLastBackup, restoreUnfinished, takeRestored } from '../backup/client.ts';
   import { daysSince, reminderDue } from '../backup/reminder.ts';
   import { backupDays, backupSnooze } from '../settings.ts';
-  import { oldestDate } from '../store/entries.ts';
   import { fromLocalDate } from '../store/session.ts';
   import { route } from '../router.ts';
   import { get } from 'svelte/store';
@@ -38,16 +37,17 @@
   // Read once pending writes (and the page just left's thumbnail) are on disk, but never wait
   // more than a second: writes may be held (TDD 6.2).
   const settled = Promise.all([saved(), thumbsSettled()]);
-  const rows: Promise<Row[]> = Promise.race([settled, new Promise((r) => setTimeout(r, 1000))]).then(() => listEntries(db(), { thumbs: true }));
   // BAK-4: a restore that was cut off says so here until the same file is restored again.
   let unfinished = $state(false);
-  void restoreUnfinished().then((v) => (unfinished = v));
-  // Restored pages get their thumbnails at idle, pausing whenever a page is open for writing.
-  void rows.then(() => redrawRestored(() => ['/today', '/entry/:id'].includes(get(route)?.template ?? ''))).catch(() => {});
   // BAK-2: a quiet note when the last backup is older than the chosen days. Once shown, it stays
   // for this visit through its build and save steps, then thanks and says when the next one is.
   let remind = $state(false);
-  void Promise.all([loadLastBackup(), oldestDate(db())]).then(([, first]) => {
+  // The notes are worked out with the rows, so they arrive in the same frame as the page: a note
+  // inserted a moment later moved the page under a tap and, mid view transition, crashed WebKit.
+  const rows: Promise<Row[]> = Promise.race([settled, new Promise((r) => setTimeout(r, 1000))]).then(async () => {
+    const [all, , gone] = await Promise.all([listEntries(db(), { thumbs: true }), loadLastBackup().catch(() => {}), restoreUnfinished()]);
+    const first = all.at(-1)?.entryDate; // newest first, so the last is the first morning
+    unfinished = gone;
     remind = reminderDue({
       lastBackupAt: get(lastBackupAt) ?? null,
       firstMorning: first ? fromLocalDate(first).getTime() : undefined,
@@ -56,7 +56,10 @@
       today: todayIso,
       now: Date.now(),
     });
-  }, () => {});
+    return all;
+  });
+  // Restored pages get their thumbnails at idle, pausing whenever a page is open for writing.
+  void rows.then(() => redrawRestored(() => ['/today', '/entry/:id'].includes(get(route)?.template ?? ''))).catch(() => {});
   const remindLead = $derived.by(() => {
     if (!$lastBackupAt) return 'You haven’t backed up yet. Your pages exist only on this iPad.';
     const n = daysSince($lastBackupAt, Date.now());
