@@ -4,7 +4,7 @@
 // (ENT-1).
 import { InkDoc } from '../ink/page.ts';
 import { pointsBox } from '../ink/stroke.ts';
-import type { Op, Page, PaperStyle, StrokeOp } from '../ink/types.ts';
+import type { Op, Page, PaperStyle, Pt, StrokeOp } from '../ink/types.ts';
 import { inkPaper } from '../settings.ts';
 import { fromRecord, toRecord } from './codec.ts';
 import { db, DB_VERSION, dbName, DEFAULT_JOURNAL, type PageRef, type RecoveryRec, type WriteCtx } from './db.ts';
@@ -198,5 +198,6 @@ if (typeof window !== 'undefined') {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sessionEnded(); });
   addEventListener('pagehide', flushTitle);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushTitle(); });
-  if (import.meta.env.VITE_E2E === '1') Object.assign(window, { __store: { db, writes, saved } });
+  if (import.meta.env.VITE_E2E === '1')
+    Object.assign(window, { __store: { db, writes, saved, encode: (pts: Pt[]) => toRecord({ kind: 'stroke', id: '', pageId: '', seq: 0, createdAt: 0, tool: 'ballpoint', color: 'black', size: 1, pts, bbox: [0, 0, 0, 0] }).pts, backup: () => import('../backup/client.ts') } });
 }

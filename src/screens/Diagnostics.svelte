@@ -40,6 +40,23 @@
       : 'Scroll on Today with a finger, then come back',
   ];
 
+  // 5.1: a year backs up in under 60 s without freezing (PRD 12.1), timed on this device. The
+  // sample is written to a throwaway database, never the journal, and deleted afterwards.
+  let bench = $state('Not run');
+  let benching = $state(false);
+  async function runBench() {
+    benching = true;
+    try {
+      const { benchBackup } = await import('../backup/client.ts');
+      const r = await benchBackup((f, phase) => (bench = `${phase === 'seed' ? 'Writing the sample' : 'Backing up'}… ${Math.round(f * 100)} %`));
+      bench = `${(r.buildMs / 1000).toFixed(1)} s for ${r.ops.toLocaleString()} strokes (${mb(r.ptsBytes)} of points, ${mb(r.bytes)} file); sample written in ${(r.seedMs / 1000).toFixed(0)} s`;
+    } catch (e) {
+      bench = `Failed: ${(e as Error).message}`;
+    } finally {
+      benching = false;
+    }
+  }
+
   const rows = $derived([
     ...inkRows,
     touchRow,
@@ -62,6 +79,13 @@
         <dd>{value}</dd>
       </div>
     {/each}
+    <div>
+      <dt>Backup of a sample year</dt>
+      <dd>
+        <span role="status">{bench}</span>
+        <button type="button" onclick={runBench} disabled={benching}>Time it</button>
+      </dd>
+    </div>
   </dl>
 </section>
 
@@ -83,6 +107,26 @@
   dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
+  }
+  dd button {
+    display: block;
+    min-height: var(--target);
+    margin-top: var(--space-2);
+    padding: 0 var(--space-4);
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: none;
+    box-shadow: inset 0 0 0 1.5px var(--ink);
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  dd button:disabled {
+    box-shadow: none;
+    background: var(--linen-deep);
+    color: var(--ink-soft);
+    cursor: default;
   }
   @media (max-width: 479.98px) {
     div {
