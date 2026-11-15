@@ -15,6 +15,9 @@ html {
   caret-color: var(--accent-ink);
   scrollbar-color: var(--rule) transparent;
   -webkit-tap-highlight-color: transparent;
+  /* The root is always a scroller, so a route change never turns it into one mid view
+     transition: that crashed WebKit after a mouse click (D-059). Overlay scrollbars on iPad. */
+  overflow-y: scroll;
 }
 
 body {
