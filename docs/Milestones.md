@@ -148,6 +148,21 @@ Throwaway prototypes in `spikes/` (committed for the record, never shipped). Eac
 | 4.15 | Public-site meta: title, description, Open Graph image | D-032 | `feat(shell): public site metadata` | Shared link shows title and image |
 | 4.16 | Impeccable onboard / adapt / critique → audit → polish | §10 | `style(shell): impeccable polish pass on app screens` | Audit has no high-severity findings |
 
+**M4 build notes (2026-11-15):**
+- **Order:** 4.7 (thumbnails) landed before 4.5, 4.6 and 4.8, which show them. DESIGN.md gained the M2/M3 writing-screen components first (owner decision: merge, not regenerate), and the M4 screens in 4.16.
+- **4.2:** the trial strip is a fixed one-line row subtracted in pure CSS. Measuring it from script during the router's view transition crashed WebKit (D-051).
+- **4.6:** tapping a day selects it and lists its entries below the grid; one more tap opens one (D-049).
+- **4.7, thumbnails:**
+  - stored as JPEG bytes, not a Blob, since WebKit's IndexedDB refused Blobs;
+  - written outside the durable queue, after a failing thumbnail stalled every stroke behind it in testing;
+  - a main-thread fallback covers workers without OffscreenCanvas (D-050).
+- **4.8:** loading is measured on scroll (an IntersectionObserver could stall), and `listEntries` reads a range's pages in one query.
+- **4.11:** the event list is built from a typed map keyed by event, so it can't drift; `/impeccable clarify` principles applied in-thread.
+- **4.12, 4.14:** `update_applied` has no version, and `session_end`'s tools are enums (D-052).
+- **4.13:** axe found the week strip's and calendar's names didn't contain their visible numbers (WCAG 2.5.3); fixed.
+- **4.16:** the finish review found terracotta used for actions and banner leads, against the One Mark Rule. Now ink, with the rule's protective exception written down. By night, thumbnails are shown inverted.
+- **Not verified here:** cold launch < 1.5 s and VoiceOver on the iPad, which is the owner check.
+
 ### M5 · Backup and restore 🎨 · branch `m5-backup`
 
 | # | Feature | PRD | Commit | Done when |

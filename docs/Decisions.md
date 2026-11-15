@@ -58,6 +58,10 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
 | D-046 | 2026-11-15 | Entry ids are assigned on open; every write gets or creates its journal, entry and page | Accepted |
 | D-047 | 2026-11-15 | Preferences stay in localStorage; IndexedDB holds the journal | Accepted |
 | D-048 | 2026-11-15 | Palm rejection for finger scrolling: hand zone, direction, and revisable decisions | Accepted |
+| D-049 | 2026-11-15 | Navigation and entry actions in M4: "New entry" by Today, Delete on rows, a day panel in the Calendar | Accepted |
+| D-050 | 2026-11-15 | Page thumbnails: drawn on close, stored as bytes, never in the durable queue | Accepted |
+| D-051 | 2026-11-15 | Theme follows the iPad; the trial strip is fixed and laid out in CSS | Accepted |
+| D-052 | 2026-11-15 | Two analytics refinements forced by the allowlist | Accepted |
 
 ---
 
@@ -616,6 +620,51 @@ Related: [PRD](./Morning%20Pages%20—%20Journal%20Web%20App%20PRD.md) · [TDD.m
   - Scrolling starts after 10 px of travel, as on iOS.
   - The zone is right-handed; a left-handed setting would mirror it.
   - The thresholds are tunable from the `/diagnostics` readout on the owner's iPad.
+
+### D-049 · Navigation and entry actions in M4: "New entry" by Today, Delete on rows, a day panel in the Calendar
+
+- **Date:** 2026-11-15 · **Status:** Accepted (owner decisions, M4 planning)
+- **Context:** M4 adds a second entry per morning (ENT-2), Recently Deleted (ENT-7), and a Calendar and a Timeline, all needing a place in a half-awake, Pencil-first UI where the pen must never hit a destructive control.
+- **Decision:**
+  - The spine holds Today, **New entry** (right under Today), Library, Calendar, Timeline and Settings. Below 480 px the tab bar shows icons only, with names kept for VoiceOver. ⌘N starts a new entry too. Today always opens the newest entry of the day.
+  - **Delete lives in a "…" menu on entry rows** (Library, Calendar day panel, Timeline), never on the writing screen. The menu is a native `popover` placed under its button through CSSOM. Delete acts at once and leaves an Undo in the row; there's no confirm dialog, since nothing is lost for 30 days (PRD 10.2).
+  - **The Calendar's day panel:** tapping a day selects it and lists its entries below the grid, which handles several entries per day. One more tap opens one.
+- **Alternatives:**
+  - "+" on the pen toolbar: busier, within reach of the pen.
+  - A delete button on the writing screen: within reach of the pen.
+  - A tap that opens the day's newest entry: hides the others.
+- **Consequences:** Recently Deleted is linked from the Library and Settings. Writing into an earlier entry stays possible (D-045).
+
+### D-050 · Page thumbnails: drawn on close, stored as bytes, never in the durable queue
+
+- **Date:** 2026-11-15 · **Status:** Accepted (refines TDD 5.1 Page.thumb)
+- **Context:** The looking-back screens show each entry's first page. Thumbnails must never slow or risk writing.
+- **Decision:**
+  - When an entry is closed or the app is hidden, each stored page whose `opCount` changed since its thumbnail (`thumbOps`) is redrawn: paper and visible strokes, 240 px wide, JPEG, in the Paper theme.
+  - A module worker draws on OffscreenCanvas. Where a worker can't (no OffscreenCanvas, as in Playwright's Windows WebKit), the main thread draws at idle instead.
+  - They're stored as **JPEG bytes (ArrayBuffer), not a Blob**: WebKit's IndexedDB refused Blobs in testing.
+  - They're **written best-effort, outside the durable write queue.** In testing, a thumbnail write that kept failing held every stroke behind it.
+  - By night they're shown inverted with the hue kept, so they read as night pages.
+- **Alternatives:** Drawing at every stroke (wasted work while writing); storing Blobs (refused); queueing them with the strokes (one failure blocks durability).
+- **Consequences:** A thumbnail can lag until the next close. Missing ones show ruled placeholders. Backups (M5) needn't carry thumbnails; they can be redrawn.
+
+### D-051 · Theme follows the iPad; the trial strip is fixed and laid out in CSS
+
+- **Date:** 2026-11-15 · **Status:** Accepted (owner decision on the theme)
+- **Decision:**
+  - The theme follows the iPad by default (Paper in light mode, Night in dark mode); Settings can pin either. A pinned theme is applied before the first screen mounts.
+  - In a Safari tab, a one-line, fixed-height trial strip (STO-1) tops every screen except onboarding. The spine and writing page subtract it with `:root:has(.trial)`, with no script. Measuring it from script during the router's view transition crashed WebKit.
+- **Consequences:** The strip is never dismissable but stays quiet (Label size, Deep Linen). At narrow widths it shortens to "Trial mode", with the full sentence kept for VoiceOver.
+
+### D-052 · Two analytics refinements forced by the allowlist
+
+- **Date:** 2026-11-15 · **Status:** Accepted (amends TDD 9.4's table; D-029 wins)
+- **Context:** D-029 allows only enums, booleans and buckets. Two TDD 9.4 rows asked for more.
+- **Decision:**
+  - `update_applied` carries no version (a version string is free text).
+  - `session_end` has `tools: ballpoint | fountain | both` and `eraser: true | false` instead of "a list of tool ids".
+  - The privacy page's event list is a typed map keyed by event, so an event can't ship without its description.
+- **Consequences:** Release uptake is a count of updates, not per version. The privacy page matches the code by construction.
 
 ---
 
