@@ -17,6 +17,7 @@ const ROUTES: [template: string, title: string, load: Load][] = [
   ['/timeline', 'Timeline', () => import('./screens/Timeline.svelte')],
   ['/deleted', 'Recently Deleted', () => import('./screens/Deleted.svelte')],
   ['/settings', 'Settings', () => import('./screens/Settings.svelte')],
+  ['/restore', 'Restore', () => import('./screens/Restore.svelte')],
   ['/onboarding', 'Welcome', () => import('./screens/Onboarding.svelte')],
   ['/privacy', 'Privacy', () => import('./screens/Privacy.svelte')],
   ['/diagnostics', 'Diagnostics', () => import('./screens/Diagnostics.svelte')],

@@ -71,8 +71,9 @@ describe('store repositories (TDD 6.1, 7.2)', () => {
 
   test('paper changes apply to every stored page of the entry', async () => {
     await commitOp(db(), ctx(), stroke('s1'));
-    await commitPaper(db(), 'e1', 'grid');
+    await commitPaper(db(), 'e1', 'grid', 5000);
     expect((await db().pages.get('p1'))?.paper).toBe('grid');
+    expect((await db().pages.get('p1'))?.updatedAt).toBe(5000); // a merge keeps the newer paper
   });
 
   test('crc32 matches the standard check value and runs on', () => {

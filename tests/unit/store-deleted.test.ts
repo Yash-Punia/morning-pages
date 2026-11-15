@@ -27,6 +27,14 @@ describe('Recently Deleted (ENT-7)', () => {
     expect(back?.ops.map((o) => o.id)).toEqual(['s1']);
   });
 
+  test('deleting and restoring move updatedAt, so a merge keeps the newer state (TDD 8.3)', async () => {
+    await commitOp(db(), ctx('a'), stroke('s1', 'a-p'));
+    await deleteEntry(db(), 'a', 1000);
+    expect((await db().entries.get('a'))?.updatedAt).toBe(1000);
+    await restoreEntry(db(), 'a', 2000);
+    expect((await db().entries.get('a'))?.updatedAt).toBe(2000);
+  });
+
   test('the purge removes only entries deleted over 30 days ago, with all their rows', async () => {
     const now = 100 * DAY;
     await commitOp(db(), ctx('old'), stroke('s1', 'old-p'));

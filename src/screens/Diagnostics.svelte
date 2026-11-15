@@ -40,6 +40,26 @@
       : 'Scroll on Today with a finger, then come back',
   ];
 
+  // 5.1: a year backs up in under 60 s without freezing (PRD 12.1), timed on this device, and is
+  // read back and restored too. The sample (about 100 MB for a year) is written to a throwaway
+  // database, never the journal, and deleted afterwards.
+  let bench = $state('Not run. It needs about 150 MB free for a minute or two.');
+  let benching = $state(false);
+  async function runBench() {
+    benching = true;
+    try {
+      const { benchBackup } = await import('../backup/client.ts');
+      const PHASES: Record<string, string> = { seed: 'Writing the sample', build: 'Backing up', restore: 'Restoring' };
+      const r = await benchBackup((f, phase) => (bench = `${PHASES[phase] ?? phase}… ${Math.round(f * 100)} %`));
+      const s = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+      bench = `Backup ${s(r.buildMs)}, reading it back ${s(r.readMs)}, restoring ${s(r.restoreMs)}, for ${r.ops.toLocaleString()} strokes (${mb(r.ptsBytes)} of points, ${mb(r.bytes)} file); sample written in ${s(r.seedMs)}`;
+    } catch (e) {
+      bench = `Failed: ${(e as Error).message}`;
+    } finally {
+      benching = false;
+    }
+  }
+
   const rows = $derived([
     ...inkRows,
     touchRow,
@@ -62,6 +82,13 @@
         <dd>{value}</dd>
       </div>
     {/each}
+    <div>
+      <dt>Backup of a sample year</dt>
+      <dd>
+        <span role="status">{bench}</span>
+        <button type="button" onclick={runBench} disabled={benching}>Time it</button>
+      </dd>
+    </div>
   </dl>
 </section>
 
@@ -83,6 +110,26 @@
   dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
+  }
+  dd button {
+    display: block;
+    min-height: var(--target);
+    margin-top: var(--space-2);
+    padding: 0 var(--space-4);
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: none;
+    box-shadow: inset 0 0 0 1.5px var(--ink);
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  dd button:disabled {
+    box-shadow: none;
+    background: var(--linen-deep);
+    color: var(--ink-soft);
+    cursor: default;
   }
   @media (max-width: 479.98px) {
     div {

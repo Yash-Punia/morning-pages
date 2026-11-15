@@ -37,6 +37,12 @@ test('durability events carry only their enums (TDD 9.4)', () => {
   expect(sanitize('storage_warning', { pct: 81 })).toBeUndefined();
 });
 
+test('a saved backup reports only its size bucket and whether it was encrypted', async () => {
+  const { backupSizeBucket } = await import('../../src/analytics/events.ts');
+  expect([0, 10 * 1048576 - 1, 10 * 1048576, 100 * 1048576].map(backupSizeBucket)).toEqual(['<10', '<10', '10-100', '100+']);
+  expect(sanitize('backup_done', { size: '10-100', encrypted: false, bytes: 48_000_000, name: 'Morning Pages 2026-11-15' })).toEqual({ size: '10-100', encrypted: false });
+});
+
 test('the privacy page describes every event that can be sent, and nothing else (PRI-7)', async () => {
   const { EVENT_DESCRIPTIONS } = await import('../../src/analytics/events.ts');
   expect(Object.keys(EVENT_DESCRIPTIONS).sort()).toEqual(Object.keys(SCHEMA).sort());

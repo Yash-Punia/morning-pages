@@ -70,3 +70,25 @@ describe('page thumbnails (M4.7)', () => {
     expect(jobs).toEqual([]);
   });
 });
+
+describe('thumbnails after a restore (TDD 8.3 step 5)', () => {
+  test('every restored page is drawn at idle, then the flag clears; leaving for a page pauses it', async () => {
+    const { redrawRestored } = await import('../../src/store/thumbs.ts');
+    const { THUMBS_PENDING } = await import('../../src/backup/restore.ts');
+    const doc = await openToday(day);
+    doc.addStroke(line(300), 'ballpoint', 'black', 2.8);
+    doc.addStroke(line(1600), 'ballpoint', 'black', 2.8); // page 2
+    await saved();
+    await db().kv.put({ key: THUMBS_PENDING, value: true });
+    const { jobs, render } = recorder();
+
+    await redrawRestored(() => true, render, palette); // the writer opened a page first
+    expect(jobs).toEqual([]);
+    expect(await db().kv.get(THUMBS_PENDING)).toBeDefined();
+
+    await redrawRestored(() => false, render, palette);
+    expect(jobs.map((j) => j.page)).toEqual([1, 2]);
+    expect(await db().kv.get(THUMBS_PENDING)).toBeUndefined();
+    expect((await db().pages.toArray()).every((p) => p.thumbOps === p.opCount)).toBe(true);
+  });
+});

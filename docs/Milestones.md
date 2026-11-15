@@ -174,6 +174,39 @@ Throwaway prototypes in `spikes/` (committed for the record, never shipped). Eac
 | 5.5 | Open JSON schema doc (`docs/backup-format.md`) | §7.4 JSON | `docs: document backup file format` | Matches writer; linked from README.txt in zip |
 | 5.6 | Backup round-trip test in CI | §12.3 | `test(backup): backup wipe restore round trip` | Runs on every PR |
 | 5.7 | Keyboard shortcut ⌘B backup | §10.2 | `feat(backup): keyboard shortcut for backup` | Works with hardware keyboard |
+| 5.8 | Impeccable critique → audit → polish on the backup screens | §10 | `style(backup): impeccable polish pass on backup screens` | Audit has no high-severity findings |
+
+**M5 build notes (2026-11-15):**
+- **Owner decisions:**
+  - backups carry portable preferences (D-053);
+  - Replace needs a saved safety copy or an explicit skip (D-055);
+  - Backup is the first Settings section; Merge leads on the restore screen; "Not now" on the reminder waits a day (D-057).
+- **Before 5.3:** a `fix:` commit makes delete, undelete and paper changes move `updatedAt`, which "newest wins" needs (D-054).
+- **5.1, timing:** a year of ink can't be seeded inside a CI run. `/diagnostics` times a sample year on the device instead, in both directions, and CI runs 30 mornings (D-058). On headless WebKit a full year backed up in 14.1 s, read back in 7.3 s and restored in 69.8 s, with no frame gap over 68 ms.
+- **After the polish, from the final review:**
+  - a resumed merge recounts every page the backup names, not only those changed in that run;
+  - a Replace never turns usage counts back on;
+  - a built backup goes back to "Back up now" once more writing is saved;
+  - a worker that goes quiet for two minutes fails the job instead of hanging.
+- **5.1, size:** `fflate` lives only in the backup worker's chunk; the launch total is unchanged at 152 KB.
+- **5.3, thumbnails:** restored pages are redrawn at idle from the Library (D-055).
+- **5.8:** the critique scored 28/40, with the detector clean. The polish fixed:
+  - a partial restore reported as "Nothing was restored";
+  - a silent end to a restore (the Library now says what arrived);
+  - two solid pills and a one-tap irreversible skip in Replace's safety step;
+  - ⌘B not counting as the safety copy;
+  - VoiceOver reading every percent.
+- **Left for later, from the critique:**
+  - a way to cancel a long backup;
+  - showing the backup's newest page in the restore preview;
+  - turning reminders off entirely (BAK-2 asks for 1–30 days; "Not now" covers a day).
+- **Deferred:** the "Updating your journal" pre-migration screen waits for the first schema change (D-056).
+- **Not verified here (owner checks on the iPad):**
+  - the share sheet saving a `.morningpages` file to Files;
+  - the file picker not greying that file out (if it does, drop `accept`; the manifest check guards anyway);
+  - the year benchmark in `/diagnostics`, both directions (it needs about 150 MB free);
+  - ⌘B's second press opening the share sheet (whether a key press counts as a gesture there);
+  - a full round trip through deleting and reinstalling the app.
 
 ### M6 · MVP hardening and release · branch `m6-mvp-release`
 

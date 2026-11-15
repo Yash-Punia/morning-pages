@@ -14,7 +14,7 @@
     { href: '/settings', label: 'Settings', icon: 'settings' },
   ];
   const BARE = ['/onboarding']; // first run: no navigation yet
-  const UNDER: Record<string, string> = { '/privacy': '/settings', '/diagnostics': '/settings', '/deleted': '/library' };
+  const UNDER: Record<string, string> = { '/privacy': '/settings', '/diagnostics': '/settings', '/restore': '/settings', '/deleted': '/library' };
 
   const trial = !isInstalled(); // STO-1: a Safari tab, not the Home Screen app
   let open = $state(false);
@@ -25,13 +25,25 @@
     newToday(new Date());
     void navigate('/today');
   }
-  // ⌘N with a hardware keyboard (PRD 10.2), never while typing in a field.
+  // ⌘B (PRD 10.2, 5.7): what the backup pill would do. The first press builds the file and, unless
+  // this screen shows a backup's progress ([data-backup-status]), opens Settings, where it does;
+  // the next saves it. The client is loaded on first use, so by the saving press it is here and
+  // the share sheet opens within that key press's gesture.
+  let backupClient: typeof import('./backup/client.ts') | undefined;
+  async function backUp() {
+    backupClient ??= await import('./backup/client.ts');
+    if (!document.querySelector('[data-backup-status]')) void navigate('/settings');
+    void backupClient.backupAction();
+  }
+  // ⌘N and ⌘B with a hardware keyboard (PRD 10.2), never while typing in a field.
   function onKey(e: KeyboardEvent) {
-    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'n') return;
+    const key = e.key.toLowerCase();
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || (key !== 'n' && key !== 'b')) return;
     if ((e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable]')) return;
     if (!$route || BARE.includes($route.template)) return;
     e.preventDefault();
-    newEntry();
+    if (key === 'n') newEntry();
+    else void backUp();
   }
 </script>
 

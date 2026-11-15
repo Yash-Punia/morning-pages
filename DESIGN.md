@@ -249,6 +249,19 @@ Gentle, small radii (6px small, 10px for interactive rows and spine entries) and
 - **Banners (Library only):** a ruled note between hairlines, opening with a short bold lead in ink; an action is an outlined pill (1.5px ink ring), since the screen's primary pill is Continue today.
 - **Trial strip (Safari tabs only):** one fixed 2.75rem line in Deep Linen at the top of every screen but onboarding, Label size, with an underlined ink link. Layout below subtracts it in CSS (`:root:has(.trial)`).
 
+### Backup and restore (M5)
+- **Pills, shared** (`.pill` in `base.css`): an outlined ink pill (1.5px ring) for actions beside a screen's primary; `.solid` for the one primary. Disabled is Deep Linen with Faded Ink text. `.text-button` is the quiet way out: Faded Ink, underlined, 44px tall.
+- **The backup pill changes in place:** "Back up now" (outlined) → "Preparing…" (disabled) → "Save backup" (solid ink), the second tap the share sheet needs (D-020). Settings, the Library note, the restore screen's safety step and ⌘B all show and drive the same state, with the same words.
+- **Progress on the rule:** a 2px ink line over the row's own bottom hairline (`progress.rule-progress`), never a bar in a box and never animated. Text names the phase ("Preparing your backup…") and never counts percent, so VoiceOver hears phases, not numbers.
+- **Settings, Backup first:** "Last backup" with "Never. Your pages exist only on this iPad.", "3 days ago · Thursday, 12 November" or "Saved just now." Below 480 px the pill wraps under its words.
+- **Restore screen:** steps appear in order, each taking focus at its heading.
+  - The preview's date range is lettered in Fraunces at headline size, the screen's focal point, with "to" in Faded Ink, over ruled definition rows.
+  - Merge is the solid pill until Replace is opened. Then Replace sits in Deep Linen (pressed), Merge steps back to an outline, and the safety step's "Back up now" is the only solid pill.
+  - "Replace without saving a copy" asks once more in place ("Without a copy, this iPad's journal can't be brought back." / Replace anyway / Keep it). It is never a dialog.
+  - Problems lead with a heading that tells the truth ("Nothing was restored", or "The restore stopped partway"), and then the pill to try again.
+- **Library notes from M5:** "Time for a backup." (Back up now, Not now), "A restore didn't finish." and, once after a restore, "Restored. 214 mornings from … are on this iPad." Stacked notes share one rule.
+- No terracotta anywhere in these flows: the spine's current item stays the screen's one mark.
+
 ### Definition rows (diagnostics)
 - **Style:** term in Faded Ink beside its value in ink with tabular numerals; stacks below 480 px.
 
