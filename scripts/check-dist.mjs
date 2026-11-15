@@ -1,7 +1,9 @@
 // Build guard (TDD 13.1, D-027). Run after `vite build`:
 //  1. Launch budget: entry chunk + its static imports + their CSS (gzipped) + preloaded fonts ≤ 400 KB.
 //  2. No inline <script>, <style> or style="" in dist/index.html (script-src/style-src 'self').
-import { readFileSync } from 'node:fs';
+//  3. Workers never touch the network (PRI-1, TDD 9.1): Playwright WebKit can't see a worker's
+//     requests, so the content canary e2e test can't either. The page's requests it does see.
+import { readdirSync, readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -41,6 +43,10 @@ export function inlineProblems(/** @type {string} */ html) {
   return problems;
 }
 
+/** Network APIs a worker chunk must not use. */
+export const networkProblems = (/** @type {string} */ js) =>
+  ['fetch(', 'XMLHttpRequest', 'sendBeacon', 'WebSocket', 'EventSource', 'importScripts'].filter((api) => js.includes(api));
+
 function main(dist = 'dist') {
   const html = readFileSync(join(dist, 'index.html'), 'utf8');
   const manifest = JSON.parse(readFileSync(join(dist, '.vite/manifest.json'), 'utf8'));
@@ -54,6 +60,12 @@ function main(dist = 'dist') {
   const problems = inlineProblems(html);
   for (const p of problems) console.error(`✗ dist/index.html has an ${p}`);
   if (total > BUDGET) console.error('✗ launch budget exceeded');
+  const assets = readdirSync(join(dist, 'assets'));
+  for (const name of readdirSync('src/workers').map((f) => f.replace(/.ts$/, ''))) {
+    const chunk = assets.find((f) => f.startsWith(`${name}-`) && f.endsWith('.js'));
+    const bad = chunk ? networkProblems(readFileSync(join(dist, 'assets', chunk), 'utf8')) : ['no chunk found'];
+    for (const api of bad) problems.push(`worker ${name}: ${api}`), console.error(`✗ worker ${name} uses ${api}`);
+  }
   if (problems.length || total > BUDGET) process.exit(1);
 }
 

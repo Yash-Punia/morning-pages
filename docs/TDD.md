@@ -766,7 +766,7 @@ Runs in CI on every PR. Starts as a warning (annotated in the PR) during M1–M2
 | Job | What | Blocks merge |
 | --- | --- | --- |
 | `check` | `npm ci`, `svelte-check`, `vitest run` | yes |
-| `build` | `vite build`; bundle-size script (≤ 400 KB gz launch path); assert `dist/index.html` has no inline `<script>` | yes |
+| `build` | `vite build`; bundle-size script (≤ 400 KB gz launch path); assert `dist/index.html` has no inline `<script>`; assert worker chunks use no network API | yes |
 | `e2e` | Playwright **WebKit**: core flows, durability torture, network allowlist + content canary, axe | yes |
 | `headers` | Parse `vercel.json`; assert CSP string matches the §11.2 policy exactly (PRI-2 plus the single Umami `connect-src`) | yes |
 | `design` | `npx impeccable detect --github src/` (annotations; exit 2 = findings) | warning → blocking at MVP |
@@ -778,7 +778,7 @@ Runs in CI on every PR. Starts as a warning (annotated in the PR) during M1–M2
 - **Durability torture (Playwright WebKit):** synthetic pen strokes via dispatched `PointerEvent({ pointerType: 'pen' })`; reload mid-stroke; close the page mid-transaction; dispatch `pointercancel`; `visibilitychange`; fill quota with a stub; assert zero lost strokes after reopen (recovery included).
 - **Backup round-trip:** fixture journal → backup → wipe → restore → deep-equal records and checksums; merge with conflicting `updatedAt`.
 - **Migrations:** each `tests/fixtures/db-v{n}.json` upgraded to latest; idempotent re-run.
-- **Network allowlist + content canary:** the test build sets `VITE_PRODUCTION_HOST` to the test host so analytics fire. Record `page.on('request')` after the `writable` mark. Every request must be either a same-origin `GET` (SW/assets) or a `POST` to `gateway.umami.is/api/send` whose body validates against the event allowlist (§9.4). The test writes typed text containing a unique canary string and a known entry id, and fails if either appears in any request. A second run with analytics switched off asserts zero requests to Umami.
+- **Network allowlist + content canary:** the test build sets `VITE_PRODUCTION_HOST` to the test host so analytics fire. Record `page.on('request')` after the `writable` mark. Every request must be either a same-origin `GET` (SW/assets) or a `POST` to `gateway.umami.is/api/send` whose body validates against the event allowlist (§9.4). The test writes typed text containing a unique canary string and a known entry id, and fails if either appears in any request. A second run with analytics switched off asserts zero requests to Umami. Playwright WebKit doesn't report requests made by dedicated workers, so the build check asserts instead that no worker chunk uses `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource` or `importScripts` (M6.2).
 - **Analytics schema:** unit test that every event's properties are enums, booleans or buckets; `sanitize()` drops unknown keys.
 - **Crypto (v1):** known-vector tests for wrap/unwrap, PBKDF2 params, recovery-code derivation.
 
