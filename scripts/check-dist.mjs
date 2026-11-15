@@ -62,9 +62,12 @@ function main(dist = 'dist') {
   if (total > BUDGET) console.error('✗ launch budget exceeded');
   const assets = readdirSync(join(dist, 'assets'));
   for (const name of readdirSync('src/workers').map((f) => f.replace(/.ts$/, ''))) {
-    const chunk = assets.find((f) => f.startsWith(`${name}-`) && f.endsWith('.js'));
-    const bad = chunk ? networkProblems(readFileSync(join(dist, 'assets', chunk), 'utf8')) : ['no chunk found'];
-    for (const api of bad) problems.push(`worker ${name}: ${api}`), console.error(`✗ worker ${name} uses ${api}`);
+    // Every chunk of that name, and at least one must really be the worker: a renamed or split
+    // worker fails here rather than going unchecked.
+    const chunks = assets.filter((f) => f.startsWith(`${name}-`) && f.endsWith('.js')).map((f) => readFileSync(join(dist, 'assets', f), 'utf8'));
+    const bad = chunks.flatMap(networkProblems);
+    if (!chunks.some((js) => /postMessage|onmessage/.test(js))) bad.push('no worker chunk found');
+    for (const api of bad) problems.push(`worker ${name}: ${api}`), console.error(`✗ worker ${name}: ${api}`);
   }
   if (problems.length || total > BUDGET) process.exit(1);
 }
