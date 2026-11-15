@@ -28,7 +28,8 @@ test('Back up now builds the file, then Save backup hands it over and records th
 
   // Headless WebKit has no share sheet for files, so the file downloads instead (TDD 8.2).
   const [download] = await Promise.all([page.waitForEvent('download'), save.click()]);
-  expect(download.suggestedFilename()).toMatch(/^Morning Pages \d{4}-\d{2}-\d{2}\.morningpages$/);
+  // Linux WebKit (CI) turns the spaces in a download's name into underscores; Safari keeps them.
+  expect(download.suggestedFilename()).toMatch(/^Morning[ _]Pages[ _]\d{4}-\d{2}-\d{2}\.morningpages$/);
   await expect(backup.getByText('Downloaded. Move it from Downloads to somewhere safe.')).toBeVisible();
   await expect(backup.getByRole('button', { name: 'Back up now' })).toBeVisible();
 
