@@ -78,7 +78,7 @@ export const restoreUnfinished = () => db().kv.get(RESTORE_MARK).then((r) => !!r
  * are stale after a restore, so the app starts again from disk. Preferences come along on a
  * Replace, or into an empty journal (owner decision, M5); a Merge keeps this iPad's.
  */
-export async function restoreBackup(file: File, mode: RestoreMode, onProgress?: Progress) {
+export async function restoreBackup(file: File, mode: RestoreMode, preview: Preview, onProgress?: Progress) {
   const empty = !(await hasJournal());
   await Promise.all([saved(), thumbsSettled()]);
   const { prefs } = await run<{ prefs: { key: string; value: string }[] }>({ kind: 'restore', file, dbName: dbName(), mode }, 'restored', onProgress);
@@ -86,7 +86,21 @@ export async function restoreBackup(file: File, mode: RestoreMode, onProgress?: 
     for (const p of prefs) {
       try { localStorage.setItem(p.key, p.value); } catch { /* private mode: keep this iPad's */ }
     }
+  // The Library says what arrived, once (the end of the most anxious flow shouldn't be silent).
+  try { sessionStorage.setItem(RESTORED, JSON.stringify({ mornings: preview.mornings, range: preview.dateRange })); } catch { /* no note, still restored */ }
   location.replace('/library');
+}
+
+const RESTORED = 'mp.restored';
+/** What the last restore brought, read once by the Library after the reload. */
+export function takeRestored(): { mornings: number; range: [string, string] | null } | null {
+  try {
+    const v = sessionStorage.getItem(RESTORED);
+    sessionStorage.removeItem(RESTORED);
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
 }
 
 // --- The two-tap flow (D-020)---------------------------------------------------------------

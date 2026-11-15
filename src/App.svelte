@@ -25,13 +25,14 @@
     newToday(new Date());
     void navigate('/today');
   }
-  // ⌘B (PRD 10.2, 5.7): what the backup pill would do. The first press builds the file and shows
-  // Settings, where its progress is; the next saves it. The client is loaded on first use, so by
-  // the saving press it is here and the share sheet opens within that key press's gesture.
+  // ⌘B (PRD 10.2, 5.7): what the backup pill would do. The first press builds the file and, unless
+  // this screen shows a backup's progress ([data-backup-status]), opens Settings, where it does;
+  // the next saves it. The client is loaded on first use, so by the saving press it is here and
+  // the share sheet opens within that key press's gesture.
   let backupClient: typeof import('./backup/client.ts') | undefined;
   async function backUp() {
     backupClient ??= await import('./backup/client.ts');
-    if (!['/settings', '/library', '/restore'].includes($route?.template ?? '')) void navigate('/settings');
+    if (!document.querySelector('[data-backup-status]')) void navigate('/settings');
     void backupClient.backupAction();
   }
   // ⌘N and ⌘B with a hardware keyboard (PRD 10.2), never while typing in a field.

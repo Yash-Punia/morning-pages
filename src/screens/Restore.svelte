@@ -4,7 +4,7 @@
   // this iPad's journal first. Nothing is written until the last tap.
   import { tick } from 'svelte';
   import type { Params } from '../router.ts';
-  import { backup, backupAction, hasJournal, previewBackup, restoreBackup } from '../backup/client.ts';
+  import { backup, backupAction, hasJournal, lastBackupAt, previewBackup, restoreBackup } from '../backup/client.ts';
   import type { Preview } from '../backup/read.ts';
   import type { RestoreMode } from '../backup/restore.ts';
   import { EXTENSION } from '../backup/format.ts';
@@ -16,7 +16,7 @@
   let step = $state<Step>('choose');
   let file = $state<File>();
   let preview = $state<Preview>();
-  let problem = $state('');
+  let problem = $state<{ heading: string; text: string; again: boolean }>();
   let progress = $state(0);
   let input = $state<HTMLInputElement>()!;
 
@@ -28,8 +28,9 @@
     'not-backup': 'This file isn’t a Morning Pages backup.',
     newer: 'This backup was made by a newer version of Morning Pages. Update the app, then try again.',
     encrypted: 'This backup is locked with a passphrase, which this version can’t open yet.',
-    damaged: 'This file is damaged: some of it doesn’t match its checksums, so nothing was restored.',
+    damaged: 'This file is damaged: parts of it can’t be read.',
   };
+  const notRestored = (text: string) => ({ heading: 'Nothing was restored', text, again: false });
 
   async function pick() {
     const f = input.files?.[0];
@@ -37,33 +38,45 @@
     if (!f) return;
     file = f;
     replacing = false;
+    confirming = false;
     step = 'checking';
     try {
       preview = await previewBackup(f);
-      step = 'preview';
+      if (preview.mornings) step = 'preview';
+      else {
+        problem = notRestored('This backup has no pages in it. Choose another file.');
+        step = 'problem';
+      }
     } catch (e) {
-      problem = PROBLEMS[(e as Error).message] ?? 'This file couldn’t be read. Try choosing it again.';
+      problem = notRestored(PROBLEMS[(e as Error).message] ?? 'This file couldn’t be read. Try choosing it again.');
       step = 'problem';
     }
   }
 
   // Replace removes this iPad's journal first, so it waits for a saved copy (owner decision).
+  // Any backup saved since Replace was opened counts, from the pill or from ⌘B.
   let replacing = $state(false);
-  let safetyStarted = $state(false);
-  const safetySaved = $derived(safetyStarted && $backup.step === 'idle' && !!$backup.outcome);
-  function safetyCopy() {
-    safetyStarted = true;
-    void backupAction();
+  let replacingSince = 0;
+  let confirming = $state(false);
+  const safetySaved = $derived(replacing && ($lastBackupAt ?? 0) >= replacingSince);
+  function toggleReplace() {
+    replacing = !replacing;
+    confirming = false;
+    replacingSince = Date.now();
   }
 
   async function start(mode: RestoreMode) {
     step = 'restoring';
     progress = 0;
     try {
-      await restoreBackup(file!, mode, (f, phase) => phase === 'restore' && (progress = f));
-      // restoreBackup reloads into the Library.
+      await restoreBackup(file!, mode, preview!, (f, phase) => phase === 'restore' && (progress = f));
+      // restoreBackup reloads into the Library, which says what arrived.
     } catch {
-      problem = 'The restore stopped before it finished. Choose the same file again to finish it.';
+      problem = {
+        heading: 'The restore stopped partway',
+        text: 'Some pages may already be here. Choose the same file again to finish it; nothing is added twice.',
+        again: true,
+      };
       step = 'problem';
     }
   }
@@ -79,35 +92,39 @@
 
   const mb = (n: number) => `${Math.max(0.1, n / 1_048_576).toFixed(1)} MB`;
   const count = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+  // The preview's dates without the weekday: the range is the point, not the day names.
+  const date = (d: string) => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${d}T12:00`));
 </script>
 
 <section class="screen" aria-labelledby="restore-title">
   <h1 id="restore-title" class="screen-title">Restore</h1>
-  <p class="lede">Restoring brings back the pages in a backup file. Nothing changes until you choose how.</p>
+  {#if step !== 'restoring'}
+    <p class="lede">Restoring brings back the pages in a backup file. Nothing changes until you choose how.</p>
+  {/if}
+
+  {#if step === 'problem' && problem}
+    <section class="step first" aria-labelledby="problem-heading">
+      <h2 id="problem-heading" tabindex="-1">{problem.heading}</h2>
+      <p class="hint">{problem.text}</p>
+    </section>
+  {/if}
 
   {#if step !== 'restoring'}
     <input bind:this={input} class="visually-hidden" type="file" accept={`${EXTENSION},application/zip`} tabindex="-1" aria-hidden="true" onchange={pick} />
-    <p class="choose">
-      <button type="button" class="pill" class:solid={step === 'choose'} onclick={() => input.click()} disabled={step === 'checking'}>
-        {step === 'checking' ? 'Checking the file…' : step === 'choose' ? 'Choose a backup file' : 'Choose another file'}
+    <p class="choose" class:after={step === 'problem'}>
+      <button type="button" class="pill" class:solid={step === 'choose' || step === 'problem'} onclick={() => input.click()} disabled={step === 'checking'}>
+        {step === 'checking' ? 'Checking the file…' : step === 'choose' ? 'Choose a backup file' : problem?.again && step === 'problem' ? 'Choose the same file again' : 'Choose another file'}
       </button>
     </p>
-  {/if}
-
-  {#if step === 'problem'}
-    <section class="step" aria-labelledby="problem-heading">
-      <h2 id="problem-heading" tabindex="-1">Nothing was restored</h2>
-      <p>{problem}</p>
-    </section>
   {/if}
 
   {#if step === 'preview' && preview}
     <section class="step" aria-labelledby="preview-heading">
       <h2 id="preview-heading" class="range" tabindex="-1">
-        {#if preview.dateRange}
-          {#if preview.dateRange[0] === preview.dateRange[1]}{longDate(preview.dateRange[0])}{:else}{longDate(preview.dateRange[0])} <span class="to">to</span> {longDate(preview.dateRange[1])}{/if}
-        {:else}
-          An empty journal
+        {#if preview.dateRange && preview.dateRange[0] !== preview.dateRange[1]}
+          {date(preview.dateRange[0])} <span class="to">to</span> {date(preview.dateRange[1])}
+        {:else if preview.dateRange}
+          {date(preview.dateRange[0])}
         {/if}
       </h2>
       <dl class="facts">
@@ -119,19 +136,21 @@
 
     {#if local !== undefined}
       <section class="step" aria-labelledby="how-heading">
-        <h2 id="how-heading">How should it come in?</h2>
         {#if local}
+          <h2 id="how-heading">How should it come in?</h2>
           <ul class="options">
             <li>
-              <button type="button" class="pill solid" onclick={() => start('merge')}>Merge into this iPad</button>
+              <!-- Merge is the safe choice, so it leads, until Replace is opened. -->
+              <button type="button" class="pill" class:solid={!replacing} onclick={() => start('merge')}>Merge into this iPad</button>
               <p class="hint">Pages on both are kept, and the newer copy of each wins.</p>
             </li>
             <li>
-              <button type="button" class="pill" onclick={() => (replacing = true)} aria-expanded={replacing}>Replace this iPad’s journal</button>
+              <button type="button" class="pill" class:open={replacing} onclick={toggleReplace} aria-expanded={replacing} aria-controls="safety">Replace this iPad’s journal</button>
               <p class="hint">Use only the backup. This iPad’s journal is removed first.</p>
             </li>
           </ul>
         {:else}
+          <h2 id="how-heading">Ready to restore</h2>
           <ul class="options">
             <li>
               <button type="button" class="pill solid" onclick={() => start('merge')}>Restore</button>
@@ -143,11 +162,11 @@
     {/if}
 
     {#if replacing}
-      <section class="step safety" aria-labelledby="safety-heading">
+      <section id="safety" class="step safety" aria-labelledby="safety-heading" data-backup-status>
         <h2 id="safety-heading" tabindex="-1">First, save a copy of this iPad’s journal</h2>
-        <p class="hint" aria-live="polite">
+        <p class="hint">
           {#if safetySaved}Saved. You can replace it now.
-          {:else if $backup.step === 'building'}Preparing the copy… {Math.round($backup.progress * 100)} %
+          {:else if $backup.step === 'building'}Preparing the copy…
           {:else if $backup.step === 'ready'}Ready. Save it to Files, a USB drive or another device.
           {:else if $backup.step === 'error'}The copy couldn’t be made. Try again in a moment.
           {:else}Then, if the backup isn’t what you hoped, nothing is lost.{/if}
@@ -159,23 +178,36 @@
           {#if safetySaved}
             <button type="button" class="pill solid" onclick={() => start('replace')}>Replace now</button>
           {:else}
-            <button type="button" class="pill" class:solid={$backup.step === 'ready'} onclick={safetyCopy} disabled={$backup.step === 'building'}>
-              {$backup.step === 'ready' ? 'Save the copy' : $backup.step === 'building' ? 'Preparing…' : 'Back up this iPad'}
+            <!-- The same pill, and words, as everywhere else a backup is made. -->
+            <button type="button" class="pill solid" onclick={backupAction} disabled={$backup.step === 'building'}>
+              {$backup.step === 'ready' ? 'Save backup' : $backup.step === 'building' ? 'Preparing…' : 'Back up now'}
             </button>
           {/if}
         </p>
         {#if !safetySaved}
-          <p><button type="button" class="text-button" onclick={() => start('replace')}>Replace without saving a copy</button></p>
+          {#if confirming}
+            <div class="confirm" role="group" aria-labelledby="confirm-text">
+              <p id="confirm-text">Without a copy, this iPad’s journal can’t be brought back.</p>
+              <p class="actions">
+                <button type="button" class="pill" onclick={() => start('replace')}>Replace anyway</button>
+                <button type="button" class="text-button" onclick={() => (confirming = false)}>Keep it</button>
+              </p>
+            </div>
+          {:else}
+            <p><button type="button" class="text-button flush" onclick={() => (confirming = true)}>Replace without saving a copy</button></p>
+          {/if}
         {/if}
+        <!-- Phases only, never each percent (the progress line carries those). -->
+        <p class="visually-hidden" aria-live="polite">{safetySaved ? 'Copy saved.' : $backup.step === 'building' ? 'Preparing the copy.' : $backup.step === 'ready' ? 'The copy is ready to save.' : $backup.step === 'error' ? 'The copy couldn’t be made.' : ''}</p>
       </section>
     {/if}
   {/if}
 
   {#if step === 'restoring'}
-    <section class="step" aria-labelledby="restoring-heading">
+    <section class="step first" aria-labelledby="restoring-heading">
       <h2 id="restoring-heading" tabindex="-1">Restoring…</h2>
       <progress class="rule-progress" max="1" value={progress} aria-label="Restoring"></progress>
-      <p class="hint" aria-live="polite">{Math.round(progress * 100)} %. Keep the app open; it reopens on the Library when it’s done.</p>
+      <p class="hint">Keep the app open. It reopens on the Library when it’s done.</p>
     </section>
   {/if}
 </section>
@@ -186,6 +218,36 @@
   }
   .step {
     margin-top: var(--space-7);
+  }
+  /* A problem or the restore in progress comes straight after the lede. */
+  .step.first {
+    margin-top: var(--space-6);
+  }
+  .choose.after {
+    margin-top: var(--space-4);
+  }
+  /* Replace opened: Deep Linen, like a pressed tool, while Merge steps back to an outline. */
+  .pill.open {
+    box-shadow: none;
+    background: var(--linen-deep);
+  }
+  .flush {
+    padding-inline: 0;
+  }
+  .confirm {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: var(--hairline) solid var(--rule);
+  }
+  .confirm > p:first-child {
+    margin: 0;
+    font-weight: 600;
+  }
+  .confirm .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
   }
   h2 {
     margin: 0;
@@ -198,7 +260,7 @@
   /* The Lettered Date Rule: the backup's dates, set like a page header, are this screen's focus. */
   .range {
     font-family: var(--font-date);
-    font-size: var(--text-lg);
+    font-size: var(--text-xl);
     font-weight: 520;
     letter-spacing: -0.01em;
     line-height: 1.2;

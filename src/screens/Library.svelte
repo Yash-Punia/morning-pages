@@ -7,7 +7,7 @@
   import { localDate, saved } from '../store/session.ts';
   import { storage } from '../store/storage.ts';
   import { redrawRestored, thumbsSettled } from '../store/thumbs.ts';
-  import { backup, backupAction, lastBackupAt, loadLastBackup, restoreUnfinished } from '../backup/client.ts';
+  import { backup, backupAction, lastBackupAt, loadLastBackup, restoreUnfinished, takeRestored } from '../backup/client.ts';
   import { daysSince, reminderDue } from '../backup/reminder.ts';
   import { backupDays, backupSnooze } from '../settings.ts';
   import { oldestDate } from '../store/entries.ts';
@@ -57,7 +57,18 @@
       now: Date.now(),
     });
   }, () => {});
-  const remindLead = $derived($lastBackupAt ? `Your last one was ${daysSince($lastBackupAt, Date.now())} days ago.` : 'You haven’t backed up yet. Your pages exist only on this iPad.');
+  const remindLead = $derived.by(() => {
+    if (!$lastBackupAt) return 'You haven’t backed up yet. Your pages exist only on this iPad.';
+    const n = daysSince($lastBackupAt, Date.now());
+    return `Your last one was ${n === 1 ? 'a day' : `${n} days`} ago.`;
+  });
+  const nextIn = () => (backupDays.get() === '1' ? 'a day' : `${backupDays.get()} days`);
+  // After a restore, the app reloads here: say what arrived (once), so the restore doesn't end in silence.
+  const restored = takeRestored();
+  const rangeText = (r: [string, string]) => {
+    const f = (d: string) => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'long', year: 'numeric' }).format(fromLocalDate(d));
+    return r[0] === r[1] ? `from ${f(r[0])}` : `from ${f(r[0])} to ${f(r[1])}`;
+  };
   function notNow() {
     backupSnooze.set(todayIso);
     remind = false;
@@ -69,6 +80,12 @@
   <h1 id="library-title" class="screen-title">Library</h1>
 
   <div class="banners">
+    {#if restored && !unfinished}
+      <p class="banner" role="status">
+        <strong>Restored.</strong>
+        {restored.mornings.toLocaleString()} {restored.mornings === 1 ? 'morning' : 'mornings'}{restored.range ? ` ${rangeText(restored.range)}` : ''} {restored.mornings === 1 ? 'is' : 'are'} on this iPad.
+      </p>
+    {/if}
     {#if unfinished}
       <div class="banner update" role="status">
         <p><strong>A restore didn’t finish.</strong> Choose the same backup file again to finish it.</p>
@@ -76,14 +93,17 @@
       </div>
     {/if}
     {#if remind}
-      <div class="banner update reminder" role="status">
+      <div class="banner update reminder" role="status" data-backup-status>
         {#if $backup.step === 'idle' && $backup.outcome}
-          <p><strong>Saved.</strong> {$backup.outcome === 'downloaded' ? 'It’s in Downloads; move it somewhere safe.' : ''} The next reminder is in {backupDays.get() === '1' ? 'a day' : `${backupDays.get()} days`}.</p>
+          <p><strong>Saved.</strong> {$backup.outcome === 'downloaded' ? 'It’s in Downloads; move it somewhere safe. ' : ''}The next reminder is in {nextIn()}.</p>
         {:else}
           <p>
             <strong>Time for a backup.</strong>
-            {$backup.step === 'building' ? `Preparing it… ${Math.round($backup.progress * 100)} %` : $backup.step === 'ready' ? 'Ready. Save it to Files, a USB drive or another device.' : $backup.step === 'error' ? 'It couldn’t be made just now. Try again in a moment.' : remindLead}
+            {$backup.step === 'building' ? 'Preparing it…' : $backup.step === 'ready' ? 'Ready. Save it to Files, a USB drive or another device.' : $backup.step === 'error' ? 'It couldn’t be made just now. Try again in a moment.' : remindLead}
           </p>
+          {#if $backup.step === 'building'}
+            <progress class="rule-progress" max="1" value={$backup.progress} aria-label="Preparing the backup"></progress>
+          {/if}
           <span class="actions">
             <button type="button" class="pill" class:solid={$backup.step === 'ready'} onclick={backupAction} disabled={$backup.step === 'building'}>
               {$backup.step === 'ready' ? 'Save backup' : $backup.step === 'building' ? 'Preparing…' : 'Back up now'}
@@ -98,7 +118,7 @@
     {#if $needRefresh}
       <div class="banner update" role="status">
         <p><strong>A new version is ready.</strong> {updating ? 'Updating once everything you’ve written is saved…' : 'It takes a moment and keeps every page.'}</p>
-        <button type="button" onclick={update} disabled={updating}>{updating ? 'Waiting…' : 'Update now'}</button>
+        <button type="button" class="pill" onclick={update} disabled={updating}>{updating ? 'Waiting…' : 'Update now'}</button>
       </div>
     {/if}
     {#if $storage.warn}
@@ -156,8 +176,11 @@
   }
   .banners {
     display: grid;
-    gap: var(--space-3);
     margin-top: var(--space-5);
+  }
+  /* Stacked notes share one rule, like lines on a page. */
+  .banner + .banner {
+    border-top: 0;
   }
   /* A banner is a ruled note with a short lead, never a card. */
   .banner {
@@ -181,24 +204,13 @@
     margin: 0;
     flex: 1 1 18rem;
   }
-  .update > button {
-    min-height: var(--target);
-    padding: 0 var(--space-5);
-    border: 0;
-    border-radius: var(--radius-pill);
-    /* Secondary: Continue today is the one ink pill on this screen. */
-    background: none;
-    box-shadow: inset 0 0 0 1.5px var(--ink);
-    color: var(--ink);
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
+  /* The reminder's progress runs along its bottom rule, full width under its words. */
+  .reminder {
+    position: relative;
   }
-  .update > button:disabled {
-    box-shadow: none;
-    background: var(--linen-deep);
-    color: var(--ink-soft);
-    cursor: default;
+  .reminder progress {
+    position: absolute;
+    inset: auto 0 calc(-1 * var(--hairline)) 0;
   }
   .reminder .actions {
     display: flex;

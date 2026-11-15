@@ -82,6 +82,7 @@ test('backup → wipe → restore gives back every record, checksum and preferen
   await expect(page.getByText('1 morning,', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Restore', exact: true }).click(); // an empty iPad: nothing to replace
   await page.waitForURL('**/library');
+  await expect(page.getByRole('status').filter({ hasText: 'Restored.' })).toContainText('1 morning from');
   await expect(page.getByText('Before the wipe').first()).toBeVisible();
 
   expect(await dump(page)).toEqual(before);
