@@ -111,3 +111,15 @@ test('a merge restore keeps pages written here and adds the backup’s (5.6)', a
   await expect(page.getByText('In the backup')).toBeVisible();
   await expect(page.getByText('Only on this iPad')).toBeVisible();
 });
+
+test('⌘B backs up from anywhere: the first press builds and shows Settings, the next saves (5.7)', async ({ page }) => {
+  await page.goto('/calendar');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible(); // the month
+  await page.keyboard.press('ControlOrMeta+b');
+  await page.waitForURL('**/settings');
+  const backup = page.getByRole('list', { name: 'Backup' });
+  await expect(backup.getByRole('button', { name: 'Save backup' })).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.keyboard.press('ControlOrMeta+b')]);
+  expect(download.suggestedFilename()).toMatch(/\.morningpages$/);
+  await expect(backup.getByText('Downloaded.', { exact: false })).toBeVisible();
+});
